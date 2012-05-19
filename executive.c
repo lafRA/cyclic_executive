@@ -2,6 +2,8 @@
 
 #include "task.h"
 
+
+//come faccio a specificare la funzione da eseguire??
 void ap_task_request() {
 	...
 }
