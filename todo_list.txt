@@ -1,0 +1,1 @@
+* Devi provare gitk --all è una GUI molto carina per vedere i vari commit e le modifiche ai file.
