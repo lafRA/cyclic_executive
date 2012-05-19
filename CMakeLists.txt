@@ -7,5 +7,5 @@ project(Cyclic-Executive)
 #ho scelto il nome della libreria in stile GNU: cyex (fico no??)
 add_library(cyex executive.c)
 
-#librerie che sicuramente sarà necessario creare
+#librerie che sicuramente sarà necessario linkare
 target_link_libraries(cyex rt pthread)
