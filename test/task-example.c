@@ -119,3 +119,10 @@ void task1_code() {
 void ap_task_code() {
 	/* Custom Code */
 }
+
+
+int main(int argc, char** argv) {
+	task_init();
+	task_destroy();
+	return 0;
+}
