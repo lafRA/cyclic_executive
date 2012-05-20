@@ -4,10 +4,15 @@ cmake_minimum_required(VERSION 2.0)
 #nome progetto
 project(Cyclic-Executive)
 
+#test della variabile
+message(WARNING "** Project path=${PROJECT_SOURCE_DIR}")
+
 #prova opzioni
 option(DUMMY_OPTION "un opzione inutile di prova per vedere come funziona! Abilita e scopri cosa fa!" ON)
 option(BUILD_TEST "Compila un eseguibile di prova da task-example.c per testare la libreria" OFF)
 set(SOURCE_PATH "${PROJECT_SOURCE_DIR}/src" CACHE PATH "percorso dei file sorgenti")
+
+message(WARNING "** Source path=${SOURCE_PATH}")
 
 #file di configurazione automatica riempito da cmake
 configure_file("${SOURCE_PATH}/executive-config.h.in" "${SOURCE_PATH}/executive-config.h")
