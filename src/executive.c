@@ -45,7 +45,7 @@ typedef struct server_data_ {
 static task_data_t* tasks = 0;				//da inizializzare nella funzione ??, e da distruggere nella funzione ??
 static server_data_t p_server;			//server per i task periodici
 static server_data_t ap_server;		//server per i task aperiodici
-static server_data_t executive;				//rappresentazione di pthread dell'executive
+static executive_data_t executive;				//rappresentazione di pthread dell'executive
 //server_data_t sp_server;
 
 //----------------PROTOTYPE-----------------//
@@ -95,19 +95,30 @@ void task_init() {
 	}
 	
 	//*	CREO IL SERVER DEI TASK PERIODICI
+	//inizializzo i mutex e le condition variable
+	pthread_mutex_init(&p_server.execute_mutex, NULL);
+	pthread_cond_init(&p_server.execute, NULL);
+	pthread_mutex_init(&p_server.finish_mutex, NULL);
+	pthread_cond_init(&p_server.finish, NULL);
 	//di default questi server hanno priorità pari a quella massima - 1;
 	sched_attr.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1;
 	pthread_attr_setschedparam(&th_attr, &sched_attr);
-	assert(pthread_create(&p_server, &th_attr, executive_handler, NULL));
+	assert(pthread_create(&p_server.thread, &th_attr, p_server_handler, NULL));
 	
 	//*	CREO IL SERVER DEI TASK APERIODICI
+	//inizializzo i mutex e le condition variable
+	pthread_mutex_init(&ap_server.execute_mutex, NULL);
+	pthread_cond_init(&ap_server.execute, NULL);
+	pthread_mutex_init(&ap_server.finish_mutex, NULL);
+	pthread_cond_init(&ap_server.finish, NULL);
 	//di default questi server hanno priorità pari a quella massima - 1;
-	assert(pthread_create(&ap_server, &th_attr, executive_handler, NULL));
+	assert(pthread_create(&ap_server.thread, &th_attr, ap_server_handler, NULL));
 	
 	//*	CREO L'EXECUTIVE
 	//l'executive detiene sempre la priorità massima
-	sched_attr.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1;
+	sched_attr.sched_priority = sched_get_priority_max(SCHED_FIFO);
 	pthread_attr_setschedparam(&th_attr, &sched_attr);
+	assert(pthread_create(&executive.thread, &th_attr, executive_handler, NULL));
 }
 
 void task_destroy() {
