@@ -1,13 +1,19 @@
 /* traccia dell'executive (pseudocodice) */
+#ifdef MULTIPROC
+	//sistema multiprocessore
+	#define _GNU_SOURCE
+#endif
+
+//file di configurazione esterno (di prova)
 #include "executive-config.h"
 #include "task.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <time.h>
+#include <assert.h>
 
 //----------------TYPES---------------------//
-
 typedef enum {
 	TASK_RUNNING,	//il job del task è in esecuzione
 	TASK_COMPLETE,	//il job ha terminato, attende una nuova esecuzione
@@ -36,27 +42,96 @@ typedef struct server_data_ {
 } server_data_t;
 
 //----------------DATA---------------------//
-
-static task_data_t* tasks;				//da inizializzare nella funzione ??, e da distruggere nella funzione ??
-
+static task_data_t* tasks = 0;				//da inizializzare nella funzione ??, e da distruggere nella funzione ??
 static server_data_t p_server;			//server per i task periodici
 static server_data_t ap_server;		//server per i task aperiodici
-
-static pthread_t executive;				//rappresentazione di pthread dell'executive
+static server_data_t executive;				//rappresentazione di pthread dell'executive
 //server_data_t sp_server;
 
+//----------------PROTOTYPE-----------------//
+void p_task_handler(void* arg);
+void p_server_handler(void* arg);
+void ap_server_handler(void* arg);
+
 //----------------FUNCTION------------------//
+void task_init() {
+	//* CREO UN POOL DI THREAD PER GESTIRE I VARI TASK ED ASSOCIO AD OGNUNO LA PROPRIA STRUTTURA DATI
+	//creazione dell'array di N_P_TASKS elementi del tipo task_data_t
+	tasks = calloc(NUM_P_TASKS, sizeof(task_data_t));
+	assert(tasks != NULL);
+	//preparo le proprietà dei thread associati ai task periodici
+	pthread_attr_t th_attr;
+	pthread_attr_init(&th_attr);
+	pthread_attr_setinheritsched(&th_attr, PTHREAD_EXPLICIT_SCHED);
+	pthread_attr_setschedpolicy(&th_attr, SCHED_FIFO);
+	
+#ifdef MULTIPROC
+	//anche su un sistema monoprocessore voglio che i task siano schedulati su un singolo core
+	cpu_set_t cpuset;
+	CPU_ZERO(&cpuset);
+	CPU_SET(0, &cpuset);
+	//affinità al processore 0
+	pthread_attr_setaffinity(&th_attr, sizeof(cpu_set_t), &cpuset);
+#endif
+	
+	//priorità dei thread: di default la pongo al minimo realtime
+	struct sched_param sched_attr;
+	sched_attr.sched_priority = sched_get_priority_min(SCHED_FIFO);
+	pthread_attr_setschedparam(&th_attr, &sched_attr);
+	
+	int i;
+	for(i = 0; i < NUM_P_TASKS; ++i) {
+		//inizializzo il mutex
+		pthread_mutex_init(&tasks[i].mutex, NULL);
+		//inizializzo la condition variable
+		pthread_cond_init(&tasks[i].execute, NULL);
+		//inizializzo l'ID del thread come l'indice con cui lo creo
+		tasks[i].thread_id = i;
+		//inizilizzo lo stato del task a TASK_COMPLETE
+		///NOTE: in questo caso posso accedere allo stato senza il mutex perchè, a questo punto di inizializzazione, non possono esistere altri processi che cercano di accedervi.
+		tasks[i].state = TASK_COMPLETE;
+		//creo il thread con gli attributi desiderati
+		assert(pthread_create(&tasks[i].thread, &th_attr, p_task_handler, (void*)(tasks+i)));
+	}
+	
+	//*	CREO IL SERVER DEI TASK PERIODICI
+	//di default questi server hanno priorità pari a quella massima - 1;
+	sched_attr.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1;
+	pthread_attr_setschedparam(&th_attr, &sched_attr);
+	assert(pthread_create(&p_server, &th_attr, executive_handler, NULL));
+	
+	//*	CREO IL SERVER DEI TASK APERIODICI
+	//di default questi server hanno priorità pari a quella massima - 1;
+	assert(pthread_create(&ap_server, &th_attr, executive_handler, NULL));
+	
+	//*	CREO L'EXECUTIVE
+	//l'executive detiene sempre la priorità massima
+	sched_attr.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1;
+	pthread_attr_setschedparam(&th_attr, &sched_attr);
+}
+
+void task_destroy() {
+	///NOTE: utilizzo il valore di tasks per capire se le cose sono già inizilizzate: tasks == 0 |==> niente è ancora stato inizializzato
+	
+	
+}
 
 void ap_task_request() {
 // 	...
 }
 
-void p_task_handler(/*...*/) {
+void p_task_handler(void* arg) {
 // 	...
 }
 
-void ap_task_handler(/*...*/) {
+void ap_task_handler(void* arg) {
 // 	...
+}
+
+void p_server_handler(void* arg) {
+}
+
+void ap_server_handler(void* arg) {
 }
 
 void executive_handler(/*...*/) {
