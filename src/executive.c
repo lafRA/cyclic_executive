@@ -1,13 +1,19 @@
 /* traccia dell'executive (pseudocodice) */
+#ifdef MULTIPROC
+	//sistema multiprocessore
+	#define _GNU_SOURCE
+#endif
+
+//file di configurazione esterno (di prova)
 #include "executive-config.h"
 #include "task.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <time.h>
+#include <assert.h>
 
 //----------------TYPES---------------------//
-
 typedef enum {
 	TASK_RUNNING,	//il job del task è in esecuzione
 	TASK_COMPLETE,	//il job ha terminato, attende una nuova esecuzione
@@ -51,7 +57,7 @@ typedef struct executive_data_ {
 
 static task_data_t* tasks;				//da inizializzare nella funzione ??, e da distruggere nella funzione ??
 
-static executive_data_t executive		//executive
+static executive_data_t executive;		//executive
 
 static server_data_t p_server;			//server per i task periodici
 static server_data_t ap_server;		//server per i task aperiodici
@@ -59,19 +65,102 @@ static server_data_t ap_server;		//server per i task aperiodici
 //static pthread_t executive;			//rappresentazione di pthread dell'executive
 //server_data_t sp_server;
 
-static ap_request_flag;					//flag di richiesta per il task aperiodico 
+static int ap_request_flag;					//flag di richiesta per il task aperiodico 
+static task_data_t* tasks = 0;				//da inizializzare nella funzione ??, e da distruggere nella funzione ??
+static server_data_t p_server;			//server per i task periodici
+static server_data_t ap_server;		//server per i task aperiodici
+static executive_data_t executive;				//rappresentazione di pthread dell'executive
+//server_data_t sp_server;
+
+//----------------PROTOTYPE-----------------//
+void p_task_handler(void* arg);
+void p_server_handler(void* arg);
+void ap_server_handler(void* arg);
+void executive_handler(void* arg);
 
 //----------------FUNCTION------------------//
+void task_init() {
+	//* CREO UN POOL DI THREAD PER GESTIRE I VARI TASK ED ASSOCIO AD OGNUNO LA PROPRIA STRUTTURA DATI
+	//creazione dell'array di N_P_TASKS elementi del tipo task_data_t
+	tasks = calloc(NUM_P_TASKS, sizeof(task_data_t));
+	assert(tasks != NULL);
+	//preparo le proprietà dei thread associati ai task periodici
+	pthread_attr_t th_attr;
+	pthread_attr_init(&th_attr);
+	pthread_attr_setinheritsched(&th_attr, PTHREAD_EXPLICIT_SCHED);
+	pthread_attr_setschedpolicy(&th_attr, SCHED_FIFO);
+	
+#ifdef MULTIPROC
+	//anche su un sistema monoprocessore voglio che i task siano schedulati su un singolo core
+	cpu_set_t cpuset;
+	CPU_ZERO(&cpuset);
+	CPU_SET(0, &cpuset);
+	//affinità al processore 0
+	pthread_attr_setaffinity(&th_attr, sizeof(cpu_set_t), &cpuset);
+#endif
+	
+	//priorità dei thread: di default la pongo al minimo realtime
+	struct sched_param sched_attr;
+	sched_attr.sched_priority = sched_get_priority_min(SCHED_FIFO);
+	pthread_attr_setschedparam(&th_attr, &sched_attr);
+	
+	int i;
+	for(i = 0; i < NUM_P_TASKS; ++i) {
+		//inizializzo il mutex
+		pthread_mutex_init(&tasks[i].mutex, NULL);
+		//inizializzo la condition variable
+		pthread_cond_init(&tasks[i].execute, NULL);
+		//inizializzo l'ID del thread come l'indice con cui lo creo
+		tasks[i].thread_id = i;
+		//inizilizzo lo stato del task a TASK_COMPLETE
+		///NOTE: in questo caso posso accedere allo stato senza il mutex perchè, a questo punto di inizializzazione, non possono esistere altri processi che cercano di accedervi.
+		tasks[i].state = TASK_COMPLETE;
+		//creo il thread con gli attributi desiderati
+		assert(pthread_create(&tasks[i].thread, &th_attr, p_task_handler, (void*)(tasks+i)));
+	}
+	
+	//*	CREO IL SERVER DEI TASK PERIODICI
+	//inizializzo i mutex e le condition variable
+	pthread_mutex_init(&p_server.execute_mutex, NULL);
+	pthread_cond_init(&p_server.execute, NULL);
+	pthread_mutex_init(&p_server.finish_mutex, NULL);
+	pthread_cond_init(&p_server.finish, NULL);
+	//di default questi server hanno priorità pari a quella massima - 1;
+	sched_attr.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1;
+	pthread_attr_setschedparam(&th_attr, &sched_attr);
+	assert(pthread_create(&p_server.thread, &th_attr, p_server_handler, NULL));
+	
+	//*	CREO IL SERVER DEI TASK APERIODICI
+	//inizializzo i mutex e le condition variable
+	pthread_mutex_init(&ap_server.execute_mutex, NULL);
+	pthread_cond_init(&ap_server.execute, NULL);
+	pthread_mutex_init(&ap_server.finish_mutex, NULL);
+	pthread_cond_init(&ap_server.finish, NULL);
+	//di default questi server hanno priorità pari a quella massima - 1;
+	assert(pthread_create(&ap_server.thread, &th_attr, ap_server_handler, NULL));
+	
+	//*	CREO L'EXECUTIVE
+	//l'executive detiene sempre la priorità massima
+	sched_attr.sched_priority = sched_get_priority_max(SCHED_FIFO);
+	pthread_attr_setschedparam(&th_attr, &sched_attr);
+	assert(pthread_create(&executive.thread, &th_attr, executive_handler, NULL));
+}
+
+void task_destroy() {
+	///NOTE: utilizzo il valore di tasks per capire se le cose sono già inizilizzate: tasks == 0 |==> niente è ancora stato inizializzato
+	
+	
+}
 
 void ap_task_request() {
 // 	...
 }
 
-void p_task_handler(/*...*/) {
+void p_task_handler(void* arg) {
 // 	...
 }
 
-void ap_task_handler(/*...*/) {
+void ap_task_handler(void* arg) {
 // 	...
 }
 
@@ -79,7 +168,7 @@ void executive_handler(void * arg) {
 	//per prima cosa l'executive aspetta il via per l'esecuzione
 	pthread_mutex_lock(&executive.mutex);
 	pthread_cond_wait(&executive.execute, &executive.mutex);
-	pthread_mutex_unlock(&executive_data.mutex);
+	pthread_mutex_unlock(&executive.mutex);
 	
 	unsigned int frame_num;		//indice del frame corrente
 	unsigned int threshold;		//soglia di sicurezza per lo slack stealing
@@ -93,14 +182,14 @@ void executive_handler(void * arg) {
 	i = 0;
 	
 	//loop forever
-	while(!stop_request) {
+	while(!executive.stop_request) {
 		
 		if(ap_request_flag) {			//se c'è una richiesta per il task aperiodico
 			//per prima cosa bisogna svegliare il server del task apediodico
 			if(SLACK[frame_num] > threshold) {	//poi mettiamo un valore di soglia che tenga conto del tempo per mettere in esecuzione il server aperiodico
 			
 				//diciamo al server per quanto tempo al max può eseguire
-				ap_server.time_limit = SLACK[frame_num] - threshold;
+				//FIXME  ap_server.time_limit = SLACK[frame_num] - threshold;
 	
 				pthread_mutex_lock(&ap_server.execute_mutex);
 				pthread_cond_signal(&ap_server.execute);
@@ -130,7 +219,15 @@ void executive_handler(void * arg) {
 		if(frame_num == NUM_FRAMES)
 			frame_num = 0;
 	}
+}
 	
+void p_server_handler(void* arg) {
+}
+
+void ap_server_handler(void* arg) {
+}
+
+//void executive_handler(/*...*/) {
 // 	struct timespec time;
 // 	struct timeval utime;
 // 
@@ -148,4 +245,4 @@ void executive_handler(void * arg) {
 // 		pthread_cond_timedwait( ..., &time );
 // 		...
 // 	}
-}
+//}
