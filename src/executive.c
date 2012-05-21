@@ -116,6 +116,7 @@ void task_init() {
 	
 	//*	CREO L'EXECUTIVE
 	//l'executive detiene sempre la priorità massima
+	///TODO: devo inizilizzare il mutex e la condition dell'executive
 	sched_attr.sched_priority = sched_get_priority_max(SCHED_FIFO);
 	pthread_attr_setschedparam(&th_attr, &sched_attr);
 	assert(pthread_create(&executive.thread, &th_attr, executive_handler, NULL));
