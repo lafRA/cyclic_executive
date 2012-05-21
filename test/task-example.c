@@ -29,7 +29,7 @@ task_routine AP_TASK;
 int * SCHEDULE[NUM_FRAMES_];
 int SLACK[NUM_FRAMES_];
 
-void task_init() {
+void schedule_init() {					//vecchio task_init
 	/* Inizializzazione di P_TASKS[] */
 	P_TASKS[0] = task0_code;
 	P_TASKS[1] = task1_code;
@@ -78,7 +78,7 @@ void task_init() {
 	/* Custom Code */
 }
 
-void task_destroy() {
+void schedule_destroy() {		//vecchio task_destroy
 	unsigned int i;
 
 	/* Custom Code */
@@ -122,7 +122,9 @@ void ap_task_code() {
 
 
 int main(int argc, char** argv) {
+	schedule_init();
 	task_init();
 	task_destroy();
+	schedule_destroy();
 	return 0;
 }
