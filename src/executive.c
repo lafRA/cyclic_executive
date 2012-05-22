@@ -80,6 +80,8 @@ void executive_handler(void* arg);
 
 //----------------FUNCTION------------------//
 void task_init() {
+// 	task_destroy();		//nel caso la task_init venga chiamata due volte di fila senza una task_destroy();
+	
 	//* CREO UN POOL DI THREAD PER GESTIRE I VARI TASK ED ASSOCIO AD OGNUNO LA PROPRIA STRUTTURA DATI
 	//creazione dell'array di N_P_TASKS elementi del tipo task_data_t
 	tasks = calloc(NUM_P_TASKS, sizeof(task_data_t));
@@ -141,16 +143,62 @@ void task_init() {
 	
 	//*	CREO L'EXECUTIVE
 	//l'executive detiene sempre la priorità massima
-	///TODO: devo inizilizzare il mutex e la condition dell'executive
+	//inizializzo i mutex e le condition variable
+	pthread_mutex_init(&executive.mutex, NULL);
+	pthread_cond_init(&executive.execute, NULL);
 	sched_attr.sched_priority = sched_get_priority_max(SCHED_FIFO);
 	pthread_attr_setschedparam(&th_attr, &sched_attr);
+	executive.stop_request = 1;
 	assert(pthread_create(&executive.thread, &th_attr, executive_handler, NULL));
 }
 
 void task_destroy() {
 	///NOTE: utilizzo il valore di tasks per capire se le cose sono già inizilizzate: tasks == 0 |==> niente è ancora stato inizializzato
+	if(tasks == 0) {
+		//non c'è niente da distruggere dato che non c'è nulla di inizializzato
+		return;
+	}
 	
+	//fermo l'esecuzione dei vari thread associati ai task
+	//e distruggo mutex e condition variable
+	int i;
+	for(i = 0; i < NUM_P_TASKS; --i ) {
+		pthread_cancel(tasks[i].thread);			//fermo la sua esecuzione
+		pthread_join(tasks[i].thread, NULL);		///FIXME: mettiamo una join per assicurarci che sia terminato prima di distruggere le sue strutture dati??
+		pthread_mutex_destroy(&tasks[i].mutex);	//distruggo il mutex
+		pthread_cond_destroy(&tasks[i].execute);	//distruggo la condition variable
+	}
 	
+	free(tasks);
+	tasks = 0;
+	
+	//fermo il server periodico
+	//e distruggo le sue strutture dati
+	pthread_canceal(p_server.thread);
+	pthread_join(p_server.thread, NULL);
+	pthread_mutex_destroy(&p_server.execute_mutex);
+	pthread_mutex_destroy(&p_server.finish_mutex);
+	pthread_cond_destroy(&p_server.execute);
+	pthread_cond_destroy(&p_server.finish);
+	
+	//fermo il server aperiodico
+	//e distruggo le sue strutture dati
+	pthread_canceal(ap_server.thread);
+	pthread_join(ap_server.thread, NULL);
+	pthread_mutex_destroy(&ap_server.execute_mutex);
+	pthread_mutex_destroy(&ap_server.finish_mutex);
+	pthread_cond_destroy(&ap_server.execute);
+	pthread_cond_destroy(&ap_server.finish);
+	
+	//fermo l'executive
+	//e distruggo le sue strutture dati
+	pthread_canceal(executive.thread);
+	pthead_join(executive.thread, NULL);
+	pthread_mutex_destroy(&executive.mutex);
+	pthread_cond_destroy(&executive.execute);
+	executive.stop_request = 1;
+	
+	return;
 }
 
 void ap_task_request() {
