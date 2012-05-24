@@ -161,29 +161,54 @@ void ap_task_request() {
 	pthread_mutex_unlock(&ap_request_flag_mutex);
 }
 
+void ap_task_handler(void* arg) {
+	task_data_t* data = (task_data_t*) arg;
+	
+	while(1) {
+		pthread_mutex_lock(&data->mutex);
+		
+		while(data->state != TASK_PENDING) {
+			pthread_cond_wait(&data->execute);	//aspetto fino a quando l'execute non mi segnala di eseguire
+		}
+		data->state = TASK_RUNNING;				//imposto il mio stato a RUNNING
+		pthread_mutex_unlock(&data->mutex);
+		
+		//eseguo il codice utente
+		(*AP_TASK)();
+		
+		///TODO: controllo se questo impedisce all'executive di svegliarsi
+		pthread_mutex_lock(&execute.mutex);	///TEST
+		
+		pthread_mutex_lock(&data->mutex);
+		data->state = TASK_COMPLETE;				//imposto il mio stato a COMPLETE
+		pthread_mutex_unlock(&data->mutex);
+		
+		///FIXME: se vengo interrotto qui, la prossima azione che faccio è segnalare erroneamente l'executive---- 
+		//segnalo all'executive che ho completato
+		
+		pthread_cond_signal(&executive.execute);
+		
+		pthread_mutex_unlock(&execute.mutex);	///TEST
+	}
+}
+
 void p_task_handler(void* arg) {
 	task_data_t* data = (task_data_t*) arg;
 	
-	pthread_mutex_lock(&data->mutex);
-	while(data->state != TASK_PENDING) {
-		pthread_cond_wait(&data->execute);	//aspetto fino a quando l'execute non mi segnala di eseguire
+	while(1) {
+		pthread_mutex_lock(&data->mutex);
+		while(data->state != TASK_PENDING) {
+			pthread_cond_wait(&data->execute);	//aspetto fino a quando l'execute non mi segnala di eseguire
+		}
+		data->state = TASK_RUNNING;				//imposto il mio stato a RUNNING
+		pthread_mutex_unlock(&data->mutex);
+		
+		(*P_TASKS[data->thread_id])();			//codice utente
+		
+		pthread_mutex_lock(&data->mutex);
+		data->state = TASK_COMPLETE;			//metto il mio stato a COMPLETE
+		pthread_mutex_unlock(&data->mutex);
 	}
-	data->state = TASK_RUNNING;				//imposto il mio stato a RUNNING
-	pthread_mutex_unlock(&data->mutex);
-	
-	//eseguo il codice utente
-	(*AP_TASK)();
-	
-	pthread_mutex_lock(&data->mutex);
-	data->state = TASK_COMPLETE;				//imposto il mio stato a COMPLETE
-	pthread_mutex_unlock(&data->mutex);
-	
-	//segnalo all'executive che ho completato
-	pthread_cond_signal(&executive.execute);
-}
-
-void ap_task_handler(void* arg) {
-	task_data_t* data = (task_data_t*) arg;
 }
 
 void executive_handler(void * arg) {
