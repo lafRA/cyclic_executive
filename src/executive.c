@@ -32,10 +32,10 @@ typedef struct executive_data_ {
 		pthread_t thread;				//rappresentazione di pthread del thread
 		
 		pthread_cond_t execute;			//indica quando l'executive può mettersi in esecuzione 
+		pthread_mutex_t mutex;			//mutex dummy per acquisire la variabile condizione execute e il flag stop_request
 		
 		unsigned char stop_request;		//flag per stoppare l'esecuzione dell'executive
 		
-		pthread_mutex_t mutex;			//mutex dummy per acquisire la variabile condizione execute e il flag stop_request
 } executive_data_t;
 
 //----------------DATA---------------------//
@@ -162,11 +162,28 @@ void ap_task_request() {
 }
 
 void p_task_handler(void* arg) {
-// 	...
+	task_data_t* data = (task_data_t*) arg;
+	
+	pthread_mutex_lock(&data->mutex);
+	while(data->state != TASK_PENDING) {
+		pthread_cond_wait(&data->execute);	//aspetto fino a quando l'execute non mi segnala di eseguire
+	}
+	data->state = TASK_RUNNING;				//imposto il mio stato a RUNNING
+	pthread_mutex_unlock(&data->mutex);
+	
+	//eseguo il codice utente
+	(*AP_TASK)();
+	
+	pthread_mutex_lock(&data->mutex);
+	data->state = TASK_COMPLETE;				//imposto il mio stato a COMPLETE
+	pthread_mutex_unlock(&data->mutex);
+	
+	//segnalo all'executive che ho completato
+	pthread_cond_signal(&executive.execute);
 }
 
 void ap_task_handler(void* arg) {
-// 	...
+	task_data_t* data = (task_data_t*) arg;
 }
 
 void executive_handler(void * arg) {
@@ -189,8 +206,7 @@ void executive_handler(void * arg) {
 	int frame_dim;				//dimensione del frame
 	int i;						//indice al task corrente
 	
-	unsigned char aperiodic_request;	//la setto a 1 quando si verifica un richista per un task aperiodico, così alla fine dei task aperiodici controllo: se non l'ho ancora servito lo servo
-	
+	unsigned char timeout_expired;		//serve per sapere se è scaduto il timeout della fine del frame
 	struct timespec time;
 	struct timeval utime;
 	
@@ -204,6 +220,7 @@ void executive_handler(void * arg) {
 	clock_gettime(CLOCK_REALTIME, &utime, NULL);		//numero di secondi e microsecondi da EPOCH..............FIXME clock_gettime()
 	time.tv_sec = utime.tv_sec;
 	time.tv_nsec = utime.tv_usec * 1000;
+	timeout_expired = 0;
 	
 	//loop forever
 	while(1) {
@@ -215,59 +232,77 @@ void executive_handler(void * arg) {
 		pthread_mutex_unlock(&executive.mutex);
 		
 		//se c'è una richiesta di un task aperiodico e c'è abbastanza slack lo eseguo
-		if(ap_request_flag) {
-			if(SLACK[frame_num] > threshold) {		//controllo se c'è abbastanza slack
-	
-				//verifico se l'istanza precedente è terminata
-				pthread_mutex_lock(&ap_execute_mutex);
-				if(ap_task.state == RUNNING) {
-					fprintf(stderr, "DEADLINE MISS (APERIODIC TASK) \n");
-					pthread_mutex_unlock(&ap_execute_mutex);
-				}
-				else {
-					ap_task.state = PENDING;
-					pthread_cond_signal(&ap_execute);
-					pthread_mutex_unlock(&ap_execute_mutex);
-					
-					time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
-					time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
-					
-					//metto l'executive in attesa che finisca il task aperiodico oppure che finisca lo slack time a disposizione:
-					pthread_mutex_lock(&ap_execute_mutex);
-					pthread_cond_timedwait(&ap_execute_cond, &ap_execute_mutex, &time);
-					pthread_mutex_unlock(&ap_execute_mutex);
+		
+		pthread_mutex_lock(&ap_task.mutex);
+		if(ap_task_request)
+			
+			
+			
+			/*if(ap_request_flag) {
+			 *		if(SLACK[frame_num] > threshold) {		//controllo se c'è abbastanza slack
+			 * 
+			 *			//verifico se l'istanza precedente è terminata
+			 *			pthread_mutex_lock(&ap_task.mutex);
+			 *			if(ap_task.state != TASK_COMPLETE) {
+			 *				fprintf(stderr, "DEADLINE MISS (APERIODIC TASK) \n");
+			 *				pthread_mutex_unlock(&ap_execute_mutex);
+			 }
+			 else {
+				 ap_task.state = TASK_PENDING;
+				 pthread_cond_signal(&ap_task.execute);
+				 pthread_mutex_unlock(&ap_task.mutex);
+				 
+				 time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
+				 time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
+				 
+				 //metto l'executive in attesa che finisca il task aperiodico oppure che finisca lo slack time a disposizione:
+				 pthread_mutex_lock(&ap_execute_mutex);
+				 pthread_cond_timedwait(&ap_execute_cond, &ap_execute_mutex, &time);
+				 pthread_mutex_unlock(&ap_execute_mutex);
+			 }
+			 }
+			}*/
+			
+			//verifico che i task del frame precedente abbiano finito l'esecuzione, se non hanno finito salto le esecuzioni successive e li faccio continuare:			come faccio????????
+			if(timeout_expired)
+			{
+				//TODO bisogna far continuare l'esecuzione dei task precedenti
+			}
+			else
+			{
+				timeout_expired = 0;
+				//mettiamo in esecuzione i task:
+				for(i = 0; i < NUM_P_TASKS_FRAME; ++i)
+				{
+					//mettiamo lo stato del task a PENDING
+					pthread_mutex_lock(&tasks[SCHEDULE[frame_nume][i]]->mutex);		//per proteggere lo stato e la variabile condizione del task	
+					tasks[SCHEDULE[frame_nume][i]]->state = PENDING;
+					pthread_cond_signal(&tasks[SCHEDULE[frame_nume][i]]->execute);
+					pthread_mutex_unlock(&tasks[SCHEDULE[frame_nume][i]]->mutex);	//per proteggere lo stato e la variabile condizione del task
 				}
 			}
-		}
-		
-		//verifico che i task del frame precedente abbiano finito l'esecuzione:
-		
-		//mettiamo in esecuzione i task:
-		for(i = 0; i < NUM_P_TASKS_FRAME; ++i)
-		{
-			//mettiamo lo stato del task a PENDING
-			pthread_mutex_lock(&tasks[SCHEDULE[frame_nume][i]]->mutex);		//per proteggere lo stato e la variabile condizione del task	
-			tasks[SCHEDULE[frame_nume][i]]->state = PENDING;
-			pthread_cond_signal(&tasks[SCHEDULE[frame_nume][i]]->execute);
-			pthread_mutex_unlock(&tasks[SCHEDULE[frame_nume][i]]->mutex);	//per proteggere lo stato e la variabile condizione del task
-		}
-		
-		time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;			//FIXME: impostare il tempo
-		time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
-		
-		//metto l'executive in attesa che finisca il tempo:
-		pthread_mutex_lock(&executive.mutex);
-		pthread_cond_timedwait(&executive.execute, &executive.mutex, &time);
-		pthread_mutex_unlock(&executive.mutex);
-		
-		frame_num++;
-		
-		if(frame_num == NUM_FRAMES) {
-			frame_num = 0;
-		}
-		
+			
+			time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;			//FIXME: impostare il tempo
+			time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
+			
+			//metto l'executive in attesa che finisca il tempo:
+			pthread_mutex_lock(&executive.mutex);
+			if(pthread_cond_timedwait(&executive.execute, &executive.mutex, &time) == ETIMEOUT)
+			{
+				timeout_expired = 1;
+			}
+			pthread_mutex_unlock(&executive.mutex);
+			
+			//non controllo se c'è una richiesta del task aperiodico perchè la mando al frame successivo
+			
+			frame_num++;
+			
+			if(frame_num == NUM_FRAMES) {
+				frame_num = 0;
+			}
+			
+			}
 	}
-}
 
 int main(int argc, char** argv) {
 	task_init();
