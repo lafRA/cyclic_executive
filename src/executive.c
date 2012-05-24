@@ -41,10 +41,26 @@ typedef struct server_data_ {
 	struct timeval time_limit;		//tempo massimo entro cui l'esecuzione del server deve terminare
 } server_data_t;
 
+typedef struct executive_data_ {
+		pthread_t thread;				//rappresentazione di pthread del thread
+		
+		pthread_cond_t execute;			//indica quando l'executive può mettersi in esecuzione 
+		
+		unsigned char stop_request;		//flag per stoppare l'esecuzione dell'executive
+		
+		pthread_mutex_t mutex;			//mutex dummy per acquisire la variabile condizione execute e il flag stop_request
+} executive_data_t;
+
+
+
 //----------------DATA---------------------//
+
+static task_data_t* tasks;				//da inizializzare nella funzione ??, e da distruggere nella funzione ??
+
+static executive_data_t executive;		//executive
+
+static unsigned char ap_request_flag;					//flag di richiesta per il task aperiodico 
 static task_data_t* tasks = 0;				//da inizializzare nella funzione ??, e da distruggere nella funzione ??
-static server_data_t p_server;			//server per i task periodici
-static server_data_t ap_server;		//server per i task aperiodici
 static executive_data_t executive;				//rappresentazione di pthread dell'executive
 //server_data_t sp_server;
 
@@ -52,6 +68,7 @@ static executive_data_t executive;				//rappresentazione di pthread dell'executi
 void p_task_handler(void* arg);
 void p_server_handler(void* arg);
 void ap_server_handler(void* arg);
+void executive_handler(void* arg);
 
 //----------------FUNCTION------------------//
 void task_init() {
@@ -139,13 +156,101 @@ void ap_task_handler(void* arg) {
 // 	...
 }
 
+void executive_handler(void * arg) {
+	//rendiamo l'executive cancellabile:
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);	//FIXME: controlla se non va bene
+	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+	
+	//per prima cosa l'executive aspetta il via per l'esecuzione
+	pthread_mutex_lock(&executive.mutex);
+	while(executive.stop_request) {
+			pthread_cond_wait(&executive.execute, &executive.mutex);
+	}
+	pthread_mutex_unlock(&executive.mutex);
+	
+	//ora controllo che il numero di frame sia corretto, se il numero di frame non è un divisore della linghezza dell'iperperiodo allora la dimensione del frame è sbagliata ed è inutile continuare
+	assert((H_PERIOD % NUM_FRAMES) != 0);
+	
+	unsigned int frame_num;		//indice del frame corrente
+	unsigned int threshold;		//soglia di sicurezza per lo slack stealing
+	int frame_dim;				//dimensione del frame
+	int i;						//indice al task corrente
+	
+	struct timespec time;
+	struct timeval utime;
+	
+
+	//inizializzazione delle variabili:
+	frame_dim = H_PERIOD / NUM_FRAMES;
+	frame_num = 0;
+	threshold = 1;		//TODO: valore a caso poi decidiamo un valore sensato
+	
+	
+	clock_gettime(CLOCK_REALTIME, &utime, NULL);		//numero di secondi e microsecondi da EPOCH..............FIXME clock_gettime()
+	time.tv_sec = utime.tv_sec;
+ 	time.tv_nsec = utime.tv_usec * 1000;
+	
+	//loop forever
+	while(1) {
+		//controlliamo se posso procedere con l'esecuzione o se l'executive è in pausa:
+		pthread_mutex_lock(&executive.mutex);	//per proteggere la variabile executive.stop_request
+		while(executive.stop_request) {
+			pthread_cond_wait(&executive.execute, &executive.mutex);
+		}
+		pthread_mutex_unlock(&executive.mutex);
+		
+		//se c'è una richiesta di un task aperiodico e c'è abbastanza slack lo eseguo
+		if(ap_request_flag) {
+			if(SLACK[frame_num] > threshold) {		//controllo se c'è abbastanza slack
+				//diciamo al server per quanto tempo al max può eseguire
+				//FIXME  ap_server.time_limit = SLACK[frame_num] - threshold;
+	
+				pthread_mutex_lock(&)
+				
+				time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;		//come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
+				time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
+			
+				//metto l'executive in attesa che finisca il server aperiodico:
+				//pthread_mutex_lock(&ap_server.finish_mutex);
+				//pthread_cond_timedwait(&ap_server.finish, &ap_server.finish_mutex, &time);
+				//pthread_mutex_unlock(&ap_server.finish_mutex);
+			}
+		}
+		
+		//mettiamo in esecuzione i task:
+		for(i = 0; i < NUM_P_TASKS; ++i)
+		{
+			//mettiamo lo stato del task a PENDING
+			pthread_mutex_lock(&tasks[i]->mutex);		//per proteggere lo stato del task	
+			tasks[i]->state = PENDING;
+			pthread_cond_signal(&tasks[i]->execute);
+			pthread_mutex_unlock(&tasks[i]->mutex);	//per proteggere lo stato del task
+		
+			time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;
+			time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
+			
+			//metto l'executive in attesa che finisca il server periodico:
+			//pthread_mutex_lock(&ap_server.finish_mutex);
+			//pthread_cond_timedwait(&ap_server.finish, &ap_server.finish_mutex, &time);
+			//pthread_mutex_unlock(&ap_server.finish_mutex);
+		}
+		
+		
+		frame_num++;
+		
+		if(frame_num == NUM_FRAMES) {
+			frame_num = 0;
+		}
+	}
+}
+	
 void p_server_handler(void* arg) {
 }
 
 void ap_server_handler(void* arg) {
 }
 
-void executive_handler(/*...*/) {
+//void executive_handler(/*...*/) {
 // 	struct timespec time;
 // 	struct timeval utime;
 // 
@@ -163,4 +268,4 @@ void executive_handler(/*...*/) {
 // 		pthread_cond_timedwait( ..., &time );
 // 		...
 // 	}
-}
+//}
