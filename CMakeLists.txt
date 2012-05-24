@@ -24,7 +24,7 @@ if(BUILD_TEST)
 	add_subdirectory(${PROJECT_SOURCE_DIR}/test)
 endif(BUILD_TEST)
 
-link_directories(${PROJECT_SOURCE_DIR}/test/obj)
+link_directories(${PROJECT_SOURCE_DIR}/bin/test)
 
 add_executable(clock_driven_ok ${SOURCE_PATH}/executive.c)
 add_executable(clock_driven_not_ok ${SOURCE_PATH}/executive.c)

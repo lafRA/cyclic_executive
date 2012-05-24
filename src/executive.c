@@ -4,6 +4,20 @@
 	#define _GNU_SOURCE
 #endif
 
+#ifdef	DEBUG
+	#define	PRINT(x, m) fprintf(stderr, "#x --> #m");
+	#define TRACE_D(x, m) fprintf(stderr, "#x --> #m = %d", (m));
+	#define TRACE_F(x, m) fprintf(stderr, "#x --> #m = %f", (m));
+	#define TRACE_C(x, m) fprintf(stderr, "#x --> #m = %c", (m));
+	#define TRACE_S(x, m) fprintf(stderr, "#x --> #m = %s", (m));
+#else
+	#define PRINT(x, m)
+	#define TRACE_D(x, m)
+	#define TRACE_F(x, m)
+	#define TRACE_C(x, m)
+	#define TRACE_S(x, m)
+#endif	//DEBUG
+
 //file di configurazione esterno (di prova)
 #include "task.h"
 #include <stdio.h>
