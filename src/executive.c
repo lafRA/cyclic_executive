@@ -5,11 +5,11 @@
 #endif
 
 #ifdef	DEBUG
-	#define	PRINT(x, m) fprintf(stderr, "#x --> #m");
-	#define TRACE_D(x, m) fprintf(stderr, "#x --> #m = %d", (m));
-	#define TRACE_F(x, m) fprintf(stderr, "#x --> #m = %f", (m));
-	#define TRACE_C(x, m) fprintf(stderr, "#x --> #m = %c", (m));
-	#define TRACE_S(x, m) fprintf(stderr, "#x --> #m = %s", (m));
+	#define	PRINT(x, m) fprintf(stderr, "%s --> #m", (x));
+	#define TRACE_D(x, m) fprintf(stderr, "%s --> #m = %d", (x), (m));
+	#define TRACE_F(x, m) fprintf(stderr, "%s --> #m = %f", (x), (m));
+	#define TRACE_C(x, m) fprintf(stderr, "%s --> #m = %c", (x), (m));
+	#define TRACE_S(x, m) fprintf(stderr, "%s --> #m = %s", (x), (m));
 #else
 	#define PRINT(x, m)
 	#define TRACE_D(x, m)
@@ -64,8 +64,9 @@ static task_data_t* tasks = 0;				//da inizializzare nella funzione ??, e da dis
 static executive_data_t executive;				//rappresentazione di pthread dell'executive
 
 //----------------PROTOTYPE-----------------//
-void executive_handler(void* arg);
-
+void* executive_handler(void* arg);
+void* p_task_handler(void* arg);
+void* ap_task_handler(void* arg);
 //----------------FUNCTION------------------//
 void init() {
 // 	task_destroy();		//nel caso la task_init venga chiamata due volte di fila senza una task_destroy();
@@ -175,14 +176,14 @@ void ap_task_request() {
 	pthread_mutex_unlock(&ap_request_flag_mutex);
 }
 
-void ap_task_handler(void* arg) {
+void* ap_task_handler(void* arg) {
 	task_data_t* data = (task_data_t*) arg;
 	
 	while(1) {
 		pthread_mutex_lock(&data->mutex);
 		
 		while(data->state != TASK_PENDING) {
-			pthread_cond_wait(&data->execute);	//aspetto fino a quando l'execute non mi segnala di eseguire
+			pthread_cond_wait(&data->execute, &data->mutex);	//aspetto fino a quando l'execute non mi segnala di eseguire
 		}
 		data->state = TASK_RUNNING;				//imposto il mio stato a RUNNING
 		pthread_mutex_unlock(&data->mutex);
@@ -190,29 +191,29 @@ void ap_task_handler(void* arg) {
 		//eseguo il codice utente
 		(*AP_TASK)();
 		
-		///TODO: controllo se questo impedisce all'executive di svegliarsi
-		pthread_mutex_lock(&execute.mutex);	///TEST
 		
-		pthread_mutex_lock(&data->mutex);
-		data->state = TASK_COMPLETE;				//imposto il mio stato a COMPLETE
-		pthread_mutex_unlock(&data->mutex);
-		
-		///FIXME: se vengo interrotto qui, la prossima azione che faccio è segnalare erroneamente l'executive---- 
-		//segnalo all'executive che ho completato
-		
-		pthread_cond_signal(&executive.execute);
-		
-		pthread_mutex_unlock(&execute.mutex);	///TEST
+		pthread_mutex_lock(&executive.mutex);	//acquisisco il mutex dell'executive perchè non voglio essere interrotto tra l'operazione di aggiornamento stato e quella di signal all'executive.
+			//aggiornamento dello stato e signal all'executive eseguite in modo atomico rispetto all'executive
+			pthread_mutex_lock(&data->mutex);
+			data->state = TASK_COMPLETE;				//imposto il mio stato a COMPLETE
+			pthread_mutex_unlock(&data->mutex);
+			
+			//se fossi interrotto qui l'executive mi vedrebbe come completato, ma, alla prossima volta che viene schedulato il task aperiodico, invece di iniziare una nuova esecuzione l'unica cosa che fa è segnalare l'executive..andrebbe quindi persa un'intera esecuzione i di task aperiodico.
+			//segnalo all'executive che ho completato
+			pthread_cond_signal(&executive.execute);
+		pthread_mutex_unlock(&executive.mutex);
 	}
+	
+	return NULL;
 }
 
-void p_task_handler(void* arg) {
+void* p_task_handler(void* arg) {
 	task_data_t* data = (task_data_t*) arg;
 	
 	while(1) {
 		pthread_mutex_lock(&data->mutex);
 		while(data->state != TASK_PENDING) {
-			pthread_cond_wait(&data->execute);	//aspetto fino a quando l'execute non mi segnala di eseguire
+			pthread_cond_wait(&data->execute, &data->mutex);	//aspetto fino a quando l'execute non mi segnala di eseguire
 		}
 		data->state = TASK_RUNNING;				//imposto il mio stato a RUNNING
 		pthread_mutex_unlock(&data->mutex);
@@ -223,9 +224,11 @@ void p_task_handler(void* arg) {
 		data->state = TASK_COMPLETE;			//metto il mio stato a COMPLETE
 		pthread_mutex_unlock(&data->mutex);
 	}
+	
+	return NULL;
 }
 
-void executive_handler(void * arg) {
+void* executive_handler(void * arg) {
 	//rendiamo l'executive cancellabile:
 	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);	//FIXME: controlla se non va bene
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
@@ -303,51 +306,52 @@ void executive_handler(void * arg) {
 			}*/
 			
 			//verifico che i task del frame precedente abbiano finito l'esecuzione, se non hanno finito salto le esecuzioni successive e li faccio continuare:			come faccio????????
-			if(timeout_expired)
+		if(timeout_expired)
+		{
+			//TODO bisogna far continuare l'esecuzione dei task precedenti
+		}
+		else
+		{
+			timeout_expired = 0;
+			//mettiamo in esecuzione i task:
+			for(i = 0; i < NUM_P_TASKS_FRAME; ++i)
 			{
-				//TODO bisogna far continuare l'esecuzione dei task precedenti
+				//mettiamo lo stato del task a PENDING
+				pthread_mutex_lock(&tasks[SCHEDULE[frame_nume][i]]->mutex);		//per proteggere lo stato e la variabile condizione del task	
+				tasks[SCHEDULE[frame_nume][i]]->state = TASK_PENDING;
+				pthread_mutex_unlock(&tasks[SCHEDULE[frame_nume][i]]->mutex);	//per proteggere lo stato e la variabile condizione del task
+				pthread_cond_signal(&tasks[SCHEDULE[frame_nume][i]]->execute);
 			}
-			else
-			{
-				timeout_expired = 0;
-				//mettiamo in esecuzione i task:
-				for(i = 0; i < NUM_P_TASKS_FRAME; ++i)
-				{
-					//mettiamo lo stato del task a PENDING
-					pthread_mutex_lock(&tasks[SCHEDULE[frame_nume][i]]->mutex);		//per proteggere lo stato e la variabile condizione del task	
-					tasks[SCHEDULE[frame_nume][i]]->state = PENDING;
-					pthread_cond_signal(&tasks[SCHEDULE[frame_nume][i]]->execute);
-					pthread_mutex_unlock(&tasks[SCHEDULE[frame_nume][i]]->mutex);	//per proteggere lo stato e la variabile condizione del task
-				}
-			}
-			
-			time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;			//FIXME: impostare il tempo
-			time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
-			
-			//metto l'executive in attesa che finisca il tempo:
-			pthread_mutex_lock(&executive.mutex);
-			if(pthread_cond_timedwait(&executive.execute, &executive.mutex, &time) == ETIMEOUT)
-			{
-				timeout_expired = 1;
-			}
-			pthread_mutex_unlock(&executive.mutex);
-			
-			//non controllo se c'è una richiesta del task aperiodico perchè la mando al frame successivo
-			
-			frame_num++;
-			
-			if(frame_num == NUM_FRAMES) {
-				frame_num = 0;
-			}
-			
-			}
+		}
+		
+		time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;			//FIXME: impostare il tempo
+		time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
+		
+		//metto l'executive in attesa che finisca il tempo:
+		pthread_mutex_lock(&executive.mutex);
+		if(pthread_cond_timedwait(&executive.execute, &executive.mutex, &time) == ETIMEOUT) {
+			timeout_expired = 1;
+		}
+		pthread_mutex_unlock(&executive.mutex);
+		
+		//non controllo se c'è una richiesta del task aperiodico perchè la mando al frame successivo
+		
+		frame_num++;
+		
+		if(frame_num == NUM_FRAMES) {
+			frame_num = 0;
+		}
+		
 	}
+	
+	return NULL;
+}
 
 int main(int argc, char** argv) {
 	task_init();
 	init();
 	
-	pthread_join(executive.thread);
+	pthread_join(executive.thread, NULL);
 	
 	destroy();
 	task_destroy();
