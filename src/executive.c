@@ -4,20 +4,6 @@
 	#define _GNU_SOURCE
 #endif
 
-#ifndef	NDEBUG
-	#define	PRINT(x, m) fprintf(stderr, ">> %s --> %s", (x), (m));
-	#define TRACE_D(x, m) fprintf(stderr, ">> %s --> #m = %d", (x), (m));
-	#define TRACE_F(x, m) fprintf(stderr, ">> %s --> #m = %f", (x), (m));
-	#define TRACE_C(x, m) fprintf(stderr, ">> %s --> #m = %c", (x), (m));
-	#define TRACE_S(x, m) fprintf(stderr, ">> %s --> #m = %s", (x), (m));
-#else
-	#define PRINT(x, m)
-	#define TRACE_D(x, m)
-	#define TRACE_F(x, m)
-	#define TRACE_C(x, m)
-	#define TRACE_S(x, m)
-#endif	//NDEBUG
-
 //file di configurazione esterno (di prova)
 #include "task.h"
 #include <stdio.h>
@@ -27,6 +13,25 @@
 #include <assert.h>
 #include <errno.h>
 
+//----------------DEFINES-------------------//
+#define TIME_UNIT_NS 1e7
+#ifndef	NDEBUG
+	#define	PRINT(x, m) fprintf(stderr, ">> %s --> %s", (x), (m));
+	#define TRACE_D(x, m) fprintf(stderr, ">> %s --> #m = %d", (x), (m));
+	#define TRACE_L(x, m) fprintf(stderr, ">> %s --> #m = %ld", (x), (m));
+	#define TRACE_LL(x, m) fprintf(stderr, ">> %s --> #m = %lld", (x), (m));
+	#define TRACE_F(x, m) fprintf(stderr, ">> %s --> #m = %f", (x), (m));
+	#define TRACE_C(x, m) fprintf(stderr, ">> %s --> #m = %c", (x), (m));
+	#define TRACE_S(x, m) fprintf(stderr, ">> %s --> #m = %s", (x), (m));
+#else
+	#define PRINT(x, m)
+	#define TRACE_D(x, m)
+	#define TRACE_L(x, m)
+	#define TRACE_LL(x, m)
+	#define TRACE_F(x, m)
+	#define TRACE_C(x, m)
+	#define TRACE_S(x, m)
+#endif	//NDEBUG
 
 //----------------TYPES---------------------//
 typedef enum {
@@ -266,9 +271,9 @@ void print_deadline_miss(int index, unsigned long long absolute_frame_num) {
 	TIME_DIFF(zero_time, t)
 	
 	if(index == -1) {
-		fprintf(stderr, "** DEADLINE MISS (APERIODIC TASK) @ (%d)s (%d)ns from start\n\tframe %d @ hyperperiod %d.\n", t.tv_sec, t.tv_nsec, absolute_frame_num % NUM_FRAMES, hyperperiod);
+		fprintf(stderr, "** DEADLINE MISS (APERIODIC TASK) @ (%ld)s (%ld)ns from start\n\tframe %lld @ hyperperiod %d.\n", t.tv_sec, t.tv_nsec, absolute_frame_num % NUM_FRAMES, hyperperiod);
 	} else  {
-		fprintf(stderr, "** DEADLINE MISS (PERIODIC TASK %d) @ (%d)s (%d)ns from start\n\tframe %d @ hyperperiod %d.\n", index, t.tv_sec, t.tv_nsec, absolute_frame_num % NUM_FRAMES, hyperperiod);
+		fprintf(stderr, "** DEADLINE MISS (PERIODIC TASK %d) @ (%ld)s (%ld)ns from start\n\tframe %lld @ hyperperiod %d.\n", index, t.tv_sec, t.tv_nsec, absolute_frame_num % NUM_FRAMES, hyperperiod);
 	}
 	
 }
@@ -349,8 +354,8 @@ void* executive_handler(void * arg) {
 		pthread_mutex_unlock(&ap_task.mutex);
 		
 		//se c'è una richiesta di un task aperiodico e c'è abbastanza slack lo eseguo
-		if((ap_task_request_flag_local == 1) || (ap_task_state_local == TASK_RUNNING)) {
-			if((ap_task_request_flag_local == 1) && (ap_task_state_local == TASK_RUNNING)) {
+		if((ap_request_flag_local == 1) || (ap_task_state_local == TASK_RUNNING)) {
+			if((ap_request_flag_local == 1) && (ap_task_state_local == TASK_RUNNING)) {
 				//segnalo la deadline miss
 // 				struct timespec t;
 // 				clock_gettime(CLOCK_REALTIME, &t);
@@ -365,13 +370,24 @@ void* executive_handler(void * arg) {
 				pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
 					
 				//...e mi metto in attesa
+				time.tv_sec = zero_time.tv_sec;
+				time.tv_nsec = zero_time.tv_nsec;		//inizializzo il tempo a zero_time
+				
+				//sommo la quantità di nanosecondi che passa tra lo zero_time e l'inizio di questo frame (contando che frame_count è già stato incrementato)
+				//TIME_UNIT_NS = 10^7 = dimensione del quanto temporale espressa in nanosecondi
+				time.tv_nsec += (TIME_UNIT_NS * frame_dim) * frame_count + (SLACK[frame_ind] - threshold)*TIME_UNIT_NS;
+		
+				//normalizzo la struttura per riportarla in uno stato consistente
 				time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
 				time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
+				
+				TRACE_L("executive_handler::waiting for slack time", time.tv_sec)
+				TRACE_L("executive_handler::waiting for slack time", time.tv_nsec)
 				
 				pthread_mutex_lock(&ap_task.mutex);
 				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
 					//se scade il timeout abbasso la priorità al task aperiodico così viene eseguito dopo tutti i task periodici, se c'è tempo
-					/*th_param.sched_priority = (sched_get_priority_max(SCHED_FIFO) - 1) - count_task(SCHEDULE[frame_ind]);*/	///@fra FIXME: devi mettere sua priorità al minimo consentito perchè, metti che l'ap_task è ancora RUNNING, ma sono in un frame che non ha slack time. Dato k la sua priorità rimane quella impostata al fram prima mi trovo in una situazione in cui un task periodico e quello aperiodico hanno la stessa priorità. dato k lo scheduling è FIFO inoltre viene schedulato quello aperiodico perchè è in coda da più tempo!!!
+					/*th_param.sched_priority = (sched_get_priority_max(SCHED_FIFO) - 1) - count_task(SCHEDULE[frame_ind]);*/	//devi mettere sua priorità al minimo consentito perchè, metti che l'ap_task è ancora RUNNING, ma sono in un frame che non ha slack time. Dato k la sua priorità rimane quella impostata al fram prima mi trovo in una situazione in cui un task periodico e quello aperiodico hanno la stessa priorità. dato k lo scheduling è FIFO inoltre viene schedulato quello aperiodico perchè è in coda da più tempo!!!
 // 					th_param.sched_priority = sched_get_priority_min(SCHED_FIFO) + 1;
 // 					pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
 					pthread_setschedprio(ap_task.thread, sched_get_priority_min(SCHED_FIFO) + 1);
@@ -409,7 +425,7 @@ void* executive_handler(void * arg) {
 				task_not_completed = (tasks[SCHEDULE[frame_prec][i]].state == TASK_RUNNING);
 				if(task_not_completed) {
 					print_deadline_miss(i, frame_count);
-					sched_get_priority_min(SCHED_FIFO)
+					sched_get_priority_min(SCHED_FIFO);
 					pthread_setschedprio(tasks[SCHEDULE[frame_prec][i]].thread, sched_get_priority_min(SCHED_FIFO));
 // 					ind = i;		//indice del task che è stato trovato ancora RUNNING all'inizio del frame
 				}
@@ -466,18 +482,32 @@ void* executive_handler(void * arg) {
 			///TEST: pthread_mutex_unlock(&tasks[SCHEDULE[frame_ind][i]].mutex);		//per proteggere lo stato e la variabile condizione del task
 		}
 			
-		time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;			//FIXME: impostare il tempo
-		time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
 			
-		//mi metto in attesa che finisca il tempo del frame:
-		pthread_mutex_lock(&executive.mutex);
-		while(pthread_cond_timedwait(&executive.execute, &executive.mutex, &time) != ETIMEDOUT) ; 
-		pthread_mutex_unlock(&executive.mutex);
 			
 		//non controllo se c'è una richiesta del task aperiodico perchè la mando al frame successivo
 		
 		++frame_count;
 		frame_ind = frame_count % NUM_FRAMES;
+		
+		
+		time.tv_sec = zero_time.tv_sec;
+		time.tv_nsec = zero_time.tv_nsec;		//inizializzo il tempo a zero_time
+		
+		//sommo la quantità di nanosecondi che passa tra lo zero_time e l'inizio del prossimo frame (contando che frame_count è già stato incrementato)
+		//TIME_UNIT_NS = 1e7 = 10^7 = dimensione del quanto temporale espressa in nanosecondi
+		time.tv_nsec += (TIME_UNIT_NS * frame_dim) * frame_count;
+		
+		//normalizzo la struttura per riportarla in uno stato consistente
+		time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;	
+		time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
+		
+		TRACE_L("executive_handler::waiting for next frame", time.tv_sec)
+		TRACE_L("executive_handler::waiting for next frame", time.tv_nsec)
+		
+		//mi metto in attesa che finisca il tempo del frame:
+		pthread_mutex_lock(&executive.mutex);
+		while(pthread_cond_timedwait(&executive.execute, &executive.mutex, &time) != ETIMEDOUT) ; 
+		pthread_mutex_unlock(&executive.mutex);
 	}
 	return NULL;
 }

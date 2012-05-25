@@ -1,7 +1,9 @@
 #include "task.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <sys/time.h>
+#include <time.h>
 
 /* Lunghezza dell'iperperiodo */
 #define H_PERIOD_ 20
@@ -114,31 +116,71 @@ void busy_wait(unsigned int best, unsigned int worst) {
 
 void task1_code() {
 	/* Custom Code */
+	struct timespec t;
+	clock_gettime(CLOCK_REALTIME, &t);
+	TIME_DIFF(zero_time, t)
+	fprintf(stderr, "----> task1 started @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
 	busy_wait(15, 20);
+	clock_gettime(CLOCK_REALTIME, &t);
+	TIME_DIFF(zero_time, t)
+	fprintf(stderr, "\t\ttask1 ended @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
 }
 
 void task2_code() {
 	/* Custom Code */
 	static unsigned int count = 0;
+	struct timespec t;
+	
+	clock_gettime(CLOCK_REALTIME, &t);
+	TIME_DIFF(zero_time, t)
+	fprintf(stderr, "----> task2 started @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
+	
 	busy_wait(5, 10);
 	
-	++count;
-	if(count % 3 > 0) {
+	if(count == 1) {
 		ap_task_request();
+		fprintf(stderr, "\t\ttask2 requested aperiodic task\n", t.tv_sec, t.tv_nsec);
 	}
+	
+	count = (count + 1) % 3;
+	
+	clock_gettime(CLOCK_REALTIME, &t);
+	TIME_DIFF(zero_time, t)
+	fprintf(stderr, "\t\ttask2 ended @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
 }
 
 void task3_code() {
 	/* Custom Code */
-	busy_wait(40, 50);
+	struct timespec t;
+	clock_gettime(CLOCK_REALTIME, &t);
+	TIME_DIFF(zero_time, t)
+	fprintf(stderr, "----> task3 started @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
+	busy_wait(20, 40);
+	clock_gettime(CLOCK_REALTIME, &t);
+	TIME_DIFF(zero_time, t)
+	fprintf(stderr, "\t\ttask3 ended @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
 }
 
 void task4_code() {
 	/* Custom Code */
+	struct timespec t;
+	clock_gettime(CLOCK_REALTIME, &t);
+	TIME_DIFF(zero_time, t)
+	fprintf(stderr, "----> task4 started @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
 	busy_wait(5, 10);
+	clock_gettime(CLOCK_REALTIME, &t);
+	TIME_DIFF(zero_time, t)
+	fprintf(stderr, "\t\ttask4 ended @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
 }
 
 void ap_task_code() {
 	/* Custom Code */
-	busy_wait(10, 10);
+	struct timespec t;
+	clock_gettime(CLOCK_REALTIME, &t);
+	TIME_DIFF(zero_time, t)
+	fprintf(stderr, "----> aperiodic task started @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
+	busy_wait(40, 50);
+	clock_gettime(CLOCK_REALTIME, &t);
+	TIME_DIFF(zero_time, t)
+	fprintf(stderr, "\t\taperiodic task ended @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
 }
