@@ -4,7 +4,7 @@
 	#define _GNU_SOURCE
 #endif
 
-#ifdef	DEBUG
+#ifndef	NDEBUG
 	#define	PRINT(x, m) fprintf(stderr, "%s --> #m", (x));
 	#define TRACE_D(x, m) fprintf(stderr, "%s --> #m = %d", (x), (m));
 	#define TRACE_F(x, m) fprintf(stderr, "%s --> #m = %f", (x), (m));
@@ -16,7 +16,7 @@
 	#define TRACE_F(x, m)
 	#define TRACE_C(x, m)
 	#define TRACE_S(x, m)
-#endif	//DEBUG
+#endif	//NDEBUG
 
 //file di configurazione esterno (di prova)
 #include "task.h"
