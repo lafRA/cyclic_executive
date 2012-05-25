@@ -320,9 +320,13 @@ void* executive_handler(void * arg) {
 	frame_count = 0;
 	threshold = 1;		//TODO: valore a caso poi decidiamo un valore sensato
 	
+	TRACE_D("executive::inizializzazione", frame_dim)
 	
-	clock_gettime(CLOCK_REALTIME, &time);			//numero di secondi e microsecondi da EPOCH..............FIXME clock_gettime()
+	
+// 	clock_gettime(CLOCK_REALTIME, &time);			//numero di secondi e microsecondi da EPOCH..............FIXME clock_gettime()
 	clock_gettime(CLOCK_REALTIME, &zero_time);
+	TRACE_LL("executive::inizializzazione", zero_time.tv_sec)
+	TRACE_LL("executive::inizializzazione", zero_time.tv_nsec)
 // 	time.tv_sec = utime.tv_sec;
 // 	time.tv_nsec = utime.tv_usec * 1000;
 // 	timeout_expired = 0;
@@ -330,6 +334,9 @@ void* executive_handler(void * arg) {
 	///			LOOP FOREVER			///
 	
 	while(1) {
+		TRACE_LL("executive::starting loop", frame_count)
+		TRACE_D("executive::starting loop", frame_ind)
+		
 		//controlliamo se posso procedere con l'esecuzione o se l'executive è in pausa:
 		/*pthread_mutex_lock(&executive.mutex);	//per proteggere la variabile executive.stop_request
 		while(executive.stop_request) {
