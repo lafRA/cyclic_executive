@@ -55,15 +55,12 @@ typedef struct executive_data_ {
 } executive_data_t;
 
 //----------------DATA---------------------//
-
 static unsigned char ap_request_flag = 0;	//flag di richiesta per il task aperiodico 
 static pthread_mutex_t ap_request_flag_mutex; 
 static task_data_t ap_task;
-
 static task_data_t* tasks = 0;				//da inizializzare nella funzione ??, e da distruggere nella funzione ??
-
-
 static executive_data_t executive;				//rappresentazione di pthread dell'executive
+struct timespec zero_time;
 
 //----------------PROTOTYPE-----------------//
 void* executive_handler(void* arg);
@@ -284,6 +281,7 @@ void* executive_handler(void * arg) {
 	
 	//unsigned char timeout_expired;		//serve per sapere se è scaduto il timeout della fine del frame
 	struct timespec time;
+	struct timeval utime;
 	
 	struct sched_param th_param;		//per modificare la priorità dei thread
 	
@@ -299,7 +297,11 @@ void* executive_handler(void * arg) {
 	threshold = 1;		//TODO: valore a caso poi decidiamo un valore sensato
 	
 	
-	clock_gettime(CLOCK_REALTIME, &time);		//numero di secondi e microsecondi da EPOCH..............FIXME clock_gettime()
+	clock_gettime(CLOCK_REALTIME, &time);			//numero di secondi e microsecondi da EPOCH..............FIXME clock_gettime()
+	clock_gettime(CLOCK_REALTIME, &zero_time);
+// 	time.tv_sec = utime.tv_sec;
+// 	time.tv_nsec = utime.tv_usec * 1000;
+// 	timeout_expired = 0;
 	
 	///			LOOP FOREVER			///
 	
@@ -327,67 +329,26 @@ void* executive_handler(void * arg) {
 		pthread_mutex_unlock(&ap_task.mutex);
 		
 		//se c'è una richiesta di un task aperiodico e c'è abbastanza slack lo eseguo
-		if(ap_task_request_flag_local) {			//c'è una richiesta per un task aperiodico
-			if(ap_task_state_local != TASK_COMPLETE) {		//c'è una richiesta ma l'istanza precedente non ha ancora terminato	
+		if((ap_task_request_flag_local == 1) || (ap_task_state_local == TASK_RUNNING)) {
+			if((ap_task_request_flag_local == 1) && (ap_task_state_local == TASK_RUNNING)) {
 				//segnalo la deadline miss
 				fprintf(stderr, "DEADLINE MISS (APERIODIC TASK) \n");
-				
-				//se c'è abbastanza slack time metto in esecuzione il task aperiodico che non aveva terminato e salto la richiesta
-				if(SLACK[frame_num] > threshold) {		
-					//gli alzo la priorità
-					th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1;
-					pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
-					
-					//...e mi metto in attesa
-					time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
-					time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
-					
-					pthread_mutex_lock(&ap_task.mutex);
-					if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
-						//se scade il timeout abbasso la priorità al task aperiodico così viene eseguito dopo tutti i task periodici, se c'è tempo
-						th_param.sched_priority = (sched_get_priority_max(SCHED_FIFO) - 1) - count_task(SCHEDULE[frame_num]);
-						pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
-					}
-					pthread_mutex_unlock(&ap_task.mutex);
-				}
 			}
-			else {				//c'è una nuova richiesta e l'istanza precedente ha completato
-				pthread_mutex_lock(&ap_task.mutex);
-				ap_task.state = TASK_PENDING;
-				pthread_cond_signal(&ap_task.execute);
-				pthread_mutex_unlock(&ap_task.mutex);
-				 
-				time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
-				time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
-				 
-				//metto l'executive in attesa che finisca il task aperiodico oppure che finisca lo slack time a disposizione:
-				pthread_mutex_lock(&ap_task.mutex);
-				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
-					//se scade il timeout abbasso la priorità al task aperiodico così viene eseguito dopo tutti i task periodici, se c'è tempo
-					th_param.sched_priority = (sched_get_priority_max(SCHED_FIFO) - 1) - count_task(SCHEDULE[frame_num]);
-					pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
-				}
-				pthread_mutex_unlock(&ap_task.mutex);
-			}
-		}
-		else {							//non c'è una nuova richiesta
-			if(ap_task_state_local != TASK_COMPLETE) {		//se c'è un'istanza precedente che deve completare
-				
-				//continuo la sua esecuzione dandogli una priorità alta:
+			//slack stealing
+			if(SLACK[frame_num] > threshold) {		
+				//gli alzo la priorità
 				th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1;
 				pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
-				
+					
 				//...e mi metto in attesa
 				time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
 				time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
-					
+				
 				pthread_mutex_lock(&ap_task.mutex);
 				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
 					//se scade il timeout abbasso la priorità al task aperiodico così viene eseguito dopo tutti i task periodici, se c'è tempo
 					th_param.sched_priority = (sched_get_priority_max(SCHED_FIFO) - 1) - count_task(SCHEDULE[frame_num]);
 					pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
-				}
-				pthread_mutex_unlock(&ap_task.mutex);
 			}
 		}
 			
