@@ -167,12 +167,6 @@ void destroy() {
 	free(tasks);
 	tasks = 0;
 	
-	//fermo il task aperiodico
-	pthread_cancel(ap_task.thread);			//fermo la sua esecuzione
-	pthread_join(ap_task.thread, NULL);		///FIXME: mettiamo una join per assicurarci che sia terminato prima di distruggere le sue strutture dati??
-	pthread_mutex_destroy(&ap_task.mutex);	//distruggo il mutex
-	pthread_cond_destroy(&ap_task.execute);	//distruggo la condition variable
-	
 	//fermo l'executive
 	//e distruggo le sue strutture dati
 	pthread_cancel(executive.thread);
@@ -311,7 +305,7 @@ void* executive_handler(void * arg) {
 	
 	///				PROLOGO				///
 	//rendiamo l'executive cancellabile:
-	/*pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);	//FIXME: controlla se non va bene
+	/*pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	
 	//per prima cosa l'executive aspetta il via per l'esecuzione
@@ -348,7 +342,7 @@ void* executive_handler(void * arg) {
 	frame_dim = H_PERIOD / NUM_FRAMES;
 	frame_ind = 0;
 	frame_count = 0;
-	threshold = 0;		//TODO: valore a caso poi decidiamo un valore sensato
+	threshold = 1000000;		//TODO: valore a caso poi decidiamo un valore sensato
 	
 	TRACE_D("executive::inizializzazione", frame_dim)
 	
@@ -406,7 +400,9 @@ void* executive_handler(void * arg) {
 		
 		//se c'è una richiesta di un task aperiodico e c'è abbastanza slack lo eseguo
 		if((ap_request_flag_local == 1) || (ap_task_state_local == TASK_RUNNING)) {
+			TRACE_D("executive::aperiodic test", (ap_request_flag_local == 1) || (ap_task_state_local == TASK_RUNNING))
 			if((ap_request_flag_local == 1) && (ap_task_state_local == TASK_RUNNING)) {
+				TRACE_D("executive::aperiodic test", (ap_request_flag_local == 1) && (ap_task_state_local == TASK_RUNNING))
 				//segnalo la deadline miss
 // 				struct timespec t;
 // 				clock_gettime(CLOCK_REALTIME, &t);
@@ -416,15 +412,16 @@ void* executive_handler(void * arg) {
 			}
 			
 			//slack stealing
-			if(SLACK[frame_ind] > threshold) {
+			if(SLACK[frame_ind] > 0) {
 				PRINT("executive", "slack stealing")
 				//se c'è stata una richiesta e nessun task aperiodico è in esecuzione devo abbassarla perchè inizio a servirla)
 				//se c'è stata una richiesta e il task aperiodico era in esecuzione devo abbassarla perchè ha generato una deadline miss
 				//se non c'è stata nessuna richiesta e il task era già in esecuzione questa è già bassa
-				pthread_mutex_lock(&ap_request_flag_mutex);
-					ap_request_flag = 0;
-				pthread_mutex_unlock(&ap_request_flag_mutex);		///@fra ho aggiunto il reset del flag di richiesta.. secondo te è giusto così??
-			
+				if(ap_request_flag_local == 1) {
+					pthread_mutex_lock(&ap_request_flag_mutex);
+						ap_request_flag = 0;
+					pthread_mutex_unlock(&ap_request_flag_mutex);		///@fra ho aggiunto il reset del flag di richiesta.. secondo te è giusto così??
+				}
 				
 				//gli alzo la priorità
 				th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1;
@@ -436,12 +433,11 @@ void* executive_handler(void * arg) {
 				
 				//sommo la quantità di nanosecondi che passa tra lo zero_time e l'inizio di questo frame (contando che frame_count è già stato incrementato)
 				//TIME_UNIT_NS = 10^7 = dimensione del quanto temporale espressa in nanosecondi
-				time.tv_nsec += (TIME_UNIT_NS * frame_dim) * frame_count + (SLACK[frame_ind] - threshold)*TIME_UNIT_NS;
+				time.tv_nsec += (TIME_UNIT_NS * frame_dim) * frame_count + (SLACK[frame_ind])*TIME_UNIT_NS - threshold;
 		
 				//normalizzo la struttura per riportarla in uno stato consistente
 				time.tv_sec += ( time.tv_nsec ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
 				time.tv_nsec = ( time.tv_nsec ) % 1000000000;
-				
 				
 #ifndef	NDEBUG
 				{
@@ -456,9 +452,12 @@ void* executive_handler(void * arg) {
 				
 				pthread_mutex_lock(&ap_task.mutex);		//TEST
 				ap_task.state = TASK_PENDING;
+				
 				pthread_mutex_unlock(&ap_task.mutex);	//TEST
 				pthread_cond_signal(&ap_task.execute);
 				
+				pthread_mutex_unlock(&ap_task.mutex);		//TEST
+				pthread_cond_signal(&ap_task.execute);
 				
 				pthread_mutex_lock(&ap_task.mutex);
 				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
@@ -500,6 +499,7 @@ void* executive_handler(void * arg) {
 		task_not_completed = 0;
 		int dim = count_task(SCHEDULE[frame_prec]);
 		for(i = 0; i < dim; ++i) {
+			pthread_mutex_lock(&tasks[SCHEDULE[frame_prec][i]].mutex);		//leggo e modifico lo stato dei thread
 			if(task_not_completed) {
 				/// @fra NOTE: Cmake, quando non in modalità debug, definisce automaticamente NDEBUG
 #ifndef	NDEBUG
@@ -516,6 +516,8 @@ void* executive_handler(void * arg) {
 // 					ind = i;		//indice del task che è stato trovato ancora RUNNING all'inizio del frame
 				}
 			}
+			pthread_mutex_unlock(&tasks[SCHEDULE[frame_prec][i]].mutex);
+			
 			///FIXME: è necessario????
 			//abbasso la priorità di tutti i thread
 			pthread_setschedprio(tasks[i].thread, sched_get_priority_min(SCHED_FIFO));
@@ -556,8 +558,10 @@ void* executive_handler(void * arg) {
 			//assegnamo le priorità
 			//TEST th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1 - i;
 			//TEST pthread_setschedparam(tasks[SCHEDULE[frame_ind][i]].thread, SCHED_FIFO, &th_param);
-
+			
 			TRACE_D("executive::scheduling periodic tasks", SCHEDULE[frame_ind][i])
+			
+			pthread_mutex_lock(&tasks[SCHEDULE[frame_ind][i]].mutex);	//per proteggere lo stato e la variabile condizione del task
 			
 			///TEST: pthread_mutex_lock(&tasks[SCHEDULE[frame_ind][i]].mutex);		//per proteggere lo stato e la variabile condizione del task	
 			if(tasks[SCHEDULE[frame_ind][i]].state == TASK_COMPLETE) {
@@ -573,6 +577,7 @@ void* executive_handler(void * arg) {
 				++rit;
 			}
 			
+			pthread_mutex_unlock(&tasks[SCHEDULE[frame_ind][i]].mutex);
 			pthread_cond_signal(&tasks[SCHEDULE[frame_ind][i]].execute);
 			///TEST: pthread_mutex_unlock(&tasks[SCHEDULE[frame_ind][i]].mutex);		//per proteggere lo stato e la variabile condizione del task
 		}
