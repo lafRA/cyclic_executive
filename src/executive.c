@@ -332,7 +332,10 @@ void* executive_handler(void * arg) {
 		if((ap_task_request_flag_local == 1) || (ap_task_state_local == TASK_RUNNING)) {
 			if((ap_task_request_flag_local == 1) && (ap_task_state_local == TASK_RUNNING)) {
 				//segnalo la deadline miss
-				fprintf(stderr, "DEADLINE MISS (APERIODIC TASK) \n");
+				struct timespec t;
+				clock_gettime(CLOCK_REALTIME, &t);
+				TIME_DIFF(zero_time, t)
+				fprintf(stderr, "** DEADLINE MISS (APERIODIC TASK) @ (%d)s (%d)ns from start.\n", t.tv_sec, t.tv_nsec);	///@fra ho aggiunto qualche info temporale
 			}
 			//slack stealing
 			if(SLACK[frame_num] > threshold) {		
@@ -347,10 +350,12 @@ void* executive_handler(void * arg) {
 				pthread_mutex_lock(&ap_task.mutex);
 				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
 					//se scade il timeout abbasso la priorità al task aperiodico così viene eseguito dopo tutti i task periodici, se c'è tempo
-					th_param.sched_priority = (sched_get_priority_max(SCHED_FIFO) - 1) - count_task(SCHEDULE[frame_num]);
+					/*th_param.sched_priority = (sched_get_priority_max(SCHED_FIFO) - 1) - count_task(SCHEDULE[frame_num]);*/	///@fra FIXME: devi mettere sua priorità al minimo consentito perchè, metti che l'ap_task è ancora RUNNING, ma sono in un frame che non ha slack time. Dato k la sua priorità rimane quella impostata al fram prima mi trovo in una situazione in cui un task periodico e quello aperiodico hanno la stessa priorità. dato k lo scheduling è FIFO inoltre viene schedulato quello aperiodico perchè è in coda da più tempo!!!
+					th_param.sched_priority = sched_get_priority_min(SCHED_FIFO);
 					pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
+				} //else { il task ap ha completato, c'è qualche controllo da fare per garantire l'integrità della cosa???
 			}
-		}
+		}	///@fra mancava questa parentesi, ci vuole, vero??
 			
 		///			SCHEDULING DEI TASK PERIODICI			///
 			
