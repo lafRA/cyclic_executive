@@ -5,11 +5,11 @@
 #endif
 
 #ifndef	NDEBUG
-	#define	PRINT(x, m) fprintf(stderr, "%s --> #m", (x));
-	#define TRACE_D(x, m) fprintf(stderr, "%s --> #m = %d", (x), (m));
-	#define TRACE_F(x, m) fprintf(stderr, "%s --> #m = %f", (x), (m));
-	#define TRACE_C(x, m) fprintf(stderr, "%s --> #m = %c", (x), (m));
-	#define TRACE_S(x, m) fprintf(stderr, "%s --> #m = %s", (x), (m));
+	#define	PRINT(x, m) fprintf(stderr, ">> %s --> %s", (x), (m));
+	#define TRACE_D(x, m) fprintf(stderr, ">> %s --> #m = %d", (x), (m));
+	#define TRACE_F(x, m) fprintf(stderr, ">> %s --> #m = %f", (x), (m));
+	#define TRACE_C(x, m) fprintf(stderr, ">> %s --> #m = %c", (x), (m));
+	#define TRACE_S(x, m) fprintf(stderr, ">> %s --> #m = %s", (x), (m));
 #else
 	#define PRINT(x, m)
 	#define TRACE_D(x, m)
@@ -352,10 +352,11 @@ void* executive_handler(void * arg) {
 		if((ap_task_request_flag_local == 1) || (ap_task_state_local == TASK_RUNNING)) {
 			if((ap_task_request_flag_local == 1) && (ap_task_state_local == TASK_RUNNING)) {
 				//segnalo la deadline miss
-				struct timespec t;
-				clock_gettime(CLOCK_REALTIME, &t);
-				TIME_DIFF(zero_time, t)
-				fprintf(stderr, "** DEADLINE MISS (APERIODIC TASK) @ (%d)s (%d)ns from start.\n", t.tv_sec, t.tv_nsec);	///@fra ho aggiunto qualche info temporale
+// 				struct timespec t;
+// 				clock_gettime(CLOCK_REALTIME, &t);
+// 				TIME_DIFF(zero_time, t)
+// 				fprintf(stderr, "** DEADLINE MISS (APERIODIC TASK) @ (%d)s (%d)ns from start.\n", t.tv_sec, t.tv_nsec);	///@fra ho aggiunto qualche info temporale
+				print_deadline_miss(-1, frame_count);
 			}
 			//slack stealing
 			if(SLACK[frame_ind] > threshold) {		
@@ -371,8 +372,9 @@ void* executive_handler(void * arg) {
 				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
 					//se scade il timeout abbasso la priorità al task aperiodico così viene eseguito dopo tutti i task periodici, se c'è tempo
 					/*th_param.sched_priority = (sched_get_priority_max(SCHED_FIFO) - 1) - count_task(SCHEDULE[frame_ind]);*/	///@fra FIXME: devi mettere sua priorità al minimo consentito perchè, metti che l'ap_task è ancora RUNNING, ma sono in un frame che non ha slack time. Dato k la sua priorità rimane quella impostata al fram prima mi trovo in una situazione in cui un task periodico e quello aperiodico hanno la stessa priorità. dato k lo scheduling è FIFO inoltre viene schedulato quello aperiodico perchè è in coda da più tempo!!!
-					th_param.sched_priority = sched_get_priority_min(SCHED_FIFO);
-					pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
+// 					th_param.sched_priority = sched_get_priority_min(SCHED_FIFO) + 1;
+// 					pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
+					pthread_setschedprio(ap_task.thread, sched_get_priority_min(SCHED_FIFO) + 1);
 				} //else { il task ap ha completato, c'è qualche controllo da fare per garantire l'integrità della cosa???
 			}
 		}	///@fra mancava questa parentesi, ci vuole, vero??
@@ -401,38 +403,49 @@ void* executive_handler(void * arg) {
 				assert(tasks[SCHEDULE[frame_prec][i]].state == TASK_PENDING);
 #endif
 				///TEST: provo a scrivere senza acquisire il mutex, tanto l'executive è SEMPRE quello a priorità più elevata
-				///TODO: print_deadline_miss!!!
+				print_deadline_miss(i, frame_count);
 				tasks[SCHEDULE[frame_prec][i]].state = TASK_COMPLETE;
 			} else {
 				task_not_completed = (tasks[SCHEDULE[frame_prec][i]].state == TASK_RUNNING);
 				if(task_not_completed) {
-					///TODO: print_deadline_miss!!!
-					ind = i;		//indice del task che è stato trovato ancora RUNNING all'inizio del frame
+					print_deadline_miss(i, frame_count);
+					sched_get_priority_min(SCHED_FIFO)
+					pthread_setschedprio(tasks[SCHEDULE[frame_prec][i]].thread, sched_get_priority_min(SCHED_FIFO));
+// 					ind = i;		//indice del task che è stato trovato ancora RUNNING all'inizio del frame
 				}
 			}
 		}
 		
-		if(task_not_completed) {/*
-			//rimpiazzo la schedule corrente (che dovrei eseguire in questo frame) con una nuova schedule che contiene i task del frame precedente che non hanno ancora eseguito
-			--ind;	//mi devo portare l'indice indietro...TODO:ottimizzarlo
-			
-			//ora mi costruisco la schedule nuova:
-			new_num_elements = count_task(SCHEDULE[frame_ind - 1]) - ind + 1;			//numero di task che andranno a far parte della nuova schedule
-			
-			//ora dovrei andarli a sostituire in SCHEDULE[frame_ind]
-			free(SCHEDULE[frame_ind]);		/// @fra FIXME: WTF???? non si tocca la schedule dell'utente!!! O__o
-			SCHEDULE[frame_ind] = (int *) malloc( sizeof( int ) * (new_num_elements + 1) );
-			
-			//ora vado a sostutuire
-			for(i = 0; i < new_num_elements; ++i) {
-				SCHEDULE[frame_ind][i] = SCHEDULE[frame_ind - 1][ind];
-				++ind;
-			}
-			SCHEDULE[frame_ind][new_num_elements] = -1;*/
-		}
+// 		if(task_not_completed) {
+// 			//rimpiazzo la schedule corrente (che dovrei eseguire in questo frame) con una nuova schedule che contiene i task del frame precedente che non hanno ancora eseguito
+// 			--ind;	//mi devo portare l'indice indietro...TODO:ottimizzarlo
+// 			
+// 			//ora mi costruisco la schedule nuova:
+// 			new_num_elements = count_task(SCHEDULE[frame_ind - 1]) - ind + 1;			//numero di task che andranno a far parte della nuova schedule
+// 			
+// 			//ora dovrei andarli a sostituire in SCHEDULE[frame_ind]
+// 			free(SCHEDULE[frame_ind]);		/// @fra FIXME: WTF???? non si tocca la schedule dell'utente!!! O__o
+// 			SCHEDULE[frame_ind] = (int *) malloc( sizeof( int ) * (new_num_elements + 1) );
+// 			
+// 			//ora vado a sostutuire
+// 			for(i = 0; i < new_num_elements; ++i) {
+// 				SCHEDULE[frame_ind][i] = SCHEDULE[frame_ind - 1][ind];
+// 				++ind;
+// 			}
+// 			SCHEDULE[frame_ind][new_num_elements] = -1;
+// 		}
 		
 		//mettiamo in esecuzione i task:
+		/*
+		 * Abbiamo adottato una politica che penalizza i task trovati in ritardo.
+		 * I task che non hanno completato nel frame corrente (ma che hanno già iniziato l'esecuzione e non possono essere fermati)
+		 * vengono schedulati solo se presenti nella schedule corrente, ma con la priorità più bassa tra quelli del frame.
+		 * In questo modo se ci sono errori di programmazione che bloccano indefinitivamente il task, questo non compromette interamente la schedule.
+		 * Dato che in generale possono esserci N task in ritardo, ognuno di questi lascia (dopo di sì) un buco nella scala di priorità, per questo
+		 * la priorità dei task "corretti" viene alzata di rit, mentre tutti i task in ritardo guadagnano una priorità a partire da quella più bassa a salire, in modo da essere comunque schedulati per ultimi (con ordine arbitrario).
+		 */
 		dim = count_task(SCHEDULE[frame_ind]);
+		int rit = 0;	//numero di task in ritardo trovati per la schedule corrente
 		for(i = 0; i < dim; ++i) {
 			//assegnamo le priorità
 			//TEST th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1 - i;
@@ -442,9 +455,11 @@ void* executive_handler(void * arg) {
 			///TEST: pthread_mutex_lock(&tasks[SCHEDULE[frame_ind][i]].mutex);		//per proteggere lo stato e la variabile condizione del task	
 			if(tasks[SCHEDULE[frame_ind][i]].state == TASK_COMPLETE) {
 				//task che vanno schedulati normalmente
-				pthread_setschedprio(tasks[SCHEDULE[frame_ind][i]].thread, (sched_get_priority_max(SCHED_FIFO) - 1 - i));	//TODO modificare negli aperiodici
+				pthread_setschedprio(tasks[SCHEDULE[frame_ind][i]].thread, (sched_get_priority_max(SCHED_FIFO) - 1 - i + rit));	//TODO modificare negli aperiodici
 			} else {
 				//task che risultano in ritardo
+				pthread_setschedprio(tasks[SCHEDULE[frame_ind][i]].thread, (sched_get_priority_max(SCHED_FIFO) - dim + rit));
+				++rit;
 			}
 			
 			pthread_cond_signal(&tasks[SCHEDULE[frame_ind][i]].execute);
