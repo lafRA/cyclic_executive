@@ -25,6 +25,8 @@
 #include <pthread.h>
 #include <time.h>
 #include <assert.h>
+#include <errno.h>
+
 
 //----------------TYPES---------------------//
 typedef enum {
@@ -64,9 +66,6 @@ static task_data_t* tasks = 0;				//da inizializzare nella funzione ??, e da dis
 static executive_data_t executive;				//rappresentazione di pthread dell'executive
 
 //----------------PROTOTYPE-----------------//
-<<<<<<< .merge_file_Lxp7Ay
-void executive_handler(void* arg);
-
 void* executive_handler(void* arg);
 void* p_task_handler(void* arg);
 void* ap_task_handler(void* arg);
@@ -165,8 +164,8 @@ void destroy() {
 	
 	//fermo l'executive
 	//e distruggo le sue strutture dati
-	pthread_canceal(executive.thread);
-	pthead_join(executive.thread, NULL);
+	pthread_cancel(executive.thread);
+	pthread_join(executive.thread, NULL);
 	pthread_mutex_destroy(&executive.mutex);
 	pthread_cond_destroy(&executive.execute);
 	executive.stop_request = 1;
@@ -180,8 +179,8 @@ void destroy() {
 	
 	//fermo l'executive
 	//e distruggo le sue strutture dati
-	pthread_canceal(executive.thread);
-	pthead_join(executive.thread, NULL);
+	pthread_cancel(executive.thread);
+	pthread_join(executive.thread, NULL);
 	pthread_mutex_destroy(&executive.mutex);
 	pthread_cond_destroy(&executive.execute);
 	executive.stop_request = 1;
@@ -193,27 +192,6 @@ void ap_task_request() {
 	pthread_mutex_lock(&ap_request_flag_mutex);
 		ap_request_flag = 1;
 	pthread_mutex_unlock(&ap_request_flag_mutex);
-}
-
-void ap_task_handler(void* arg) {
-	task_data_t* data = (task_data_t*) arg;
-	
-	pthread_mutex_lock(&data->mutex);
-	while(data->state != TASK_PENDING) {
-		pthread_cond_wait(&data->execute);	//aspetto fino a quando l'execute non mi segnala di eseguire
-	}
-	data->state = TASK_RUNNING;				//imposto il mio stato a RUNNING
-	pthread_mutex_unlock(&data->mutex);
-	
-	//eseguo il codice utente
-	(*AP_TASK)();
-	
-	pthread_mutex_lock(&data->mutex);
-	data->state = TASK_COMPLETE;				//imposto il mio stato a COMPLETE
-	pthread_mutex_unlock(&data->mutex);
-	
-	//segnalo all'executive che ho completato
-	pthread_cond_signal(&executive.execute);
 }
 
 /* Conta i task che devono essere eseguiti in un frame */
@@ -428,11 +406,11 @@ void* executive_handler(void * arg) {
 		ind = 0;
 		task_not_completed = 0;
 		while((!task_not_completed) && (ind < count_task(SCHEDULE[frame_num - 1]))) {
-			pthead_mutex_lock(&tasks[SCHEDULE[frame_num - 1][ind]].mutex);
+			pthread_mutex_lock(&tasks[SCHEDULE[frame_num - 1][ind]].mutex);
 			if(tasks[SCHEDULE[frame_num - 1][ind]].state != TASK_COMPLETE) {	//un task del frame precedente non ha terminato
 				task_not_completed = 1;
 			}
-			pthead_mutex_unlock(&tasks[SCHEDULE[frame_num - 1][ind]].mutex);
+			pthread_mutex_unlock(&tasks[SCHEDULE[frame_num - 1][ind]].mutex);
 			++ind;
 		}
 		
