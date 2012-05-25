@@ -467,7 +467,9 @@ void* executive_handler(void * arg) {
 }
 
 int main(int argc, char** argv) {
+	task_init();
 	init();
 	pthread_join(executive.thread, NULL);
 	destroy();
+	task_destroy();
 }
