@@ -118,71 +118,92 @@ void busy_wait(unsigned int best, unsigned int worst) {
 
 void task1_code() {
 	/* Custom Code */
-	struct timespec t;
-	clock_gettime(CLOCK_REALTIME, &t);
+	struct timespec start, end, t;
+	clock_gettime(CLOCK_REALTIME, &start);
+	t.tv_sec = start.tv_sec;
+	t.tv_nsec = start.tv_nsec;
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task1 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 	busy_wait(15, 20);
-	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_REALTIME, &end);
+	t.tv_sec = end.tv_sec;
+	t.tv_nsec = end.tv_nsec;
 	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "\t\ttask1 ended @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
+	TIME_DIFF(start, end)
+	fprintf(stderr, "\t\ttask1 ended @ (%ld)s (%.3f)ms\t||\t total execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
 }
 
 void task2_code() {
 	/* Custom Code */
 	static unsigned int count = 0;
-	struct timespec t;
 	
-	clock_gettime(CLOCK_REALTIME, &t);
+	struct timespec start, end, t;
+	clock_gettime(CLOCK_REALTIME, &start);
+	t.tv_sec = start.tv_sec;
+	t.tv_nsec = start.tv_nsec;
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task2 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
-	
 	busy_wait(5, 10);
-	
 	if(count == 1) {
 		ap_task_request();
 		fprintf(stderr, "\t\ttask2 requested aperiodic task\n", t.tv_sec, t.tv_nsec);
 	}
-	
 	count = (count + 1) % 3;
-	
-	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_REALTIME, &end);
+	t.tv_sec = end.tv_sec;
+	t.tv_nsec = end.tv_nsec;
 	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "\t\ttask2 ended @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
+	TIME_DIFF(start, end)
+	fprintf(stderr, "\t\ttask2 ended @ (%ld)s (%.3f)ms\t||\t total execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
 }
 
 void task3_code() {
 	/* Custom Code */
-	struct timespec t;
-	clock_gettime(CLOCK_REALTIME, &t);
+	struct timespec start, end, t;
+	clock_gettime(CLOCK_REALTIME, &start);
+	t.tv_sec = start.tv_sec;
+	t.tv_nsec = start.tv_nsec;
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task3 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 	busy_wait(20, 40);
-	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_REALTIME, &end);
+	t.tv_sec = end.tv_sec;
+	t.tv_nsec = end.tv_nsec;
 	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "\t\ttask3 ended @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
+	TIME_DIFF(start, end)
+	fprintf(stderr, "\t\ttask3 ended @ (%ld)s (%.3f)ms\t||\t total execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
 }
 
 void task4_code() {
 	/* Custom Code */
-	struct timespec t;
-	clock_gettime(CLOCK_REALTIME, &t);
+	struct timespec start, end, t;
+	clock_gettime(CLOCK_REALTIME, &start);
+	t.tv_sec = start.tv_sec;
+	t.tv_nsec = start.tv_nsec;
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task4 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 	busy_wait(5, 10);
-	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_REALTIME, &end);
+	t.tv_sec = end.tv_sec;
+	t.tv_nsec = end.tv_nsec;
 	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "\t\ttask4 ended @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
+	TIME_DIFF(start, end)
+	fprintf(stderr, "\t\ttask4 ended @ (%ld)s (%.3f)ms\t||\t total execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
 }
 
 void ap_task_code() {
 	/* Custom Code */
-	struct timespec t;
-	clock_gettime(CLOCK_REALTIME, &t);
+	struct timespec start, end, t;
+	clock_gettime(CLOCK_REALTIME, &start);
+	t.tv_sec = start.tv_sec;
+	t.tv_nsec = start.tv_nsec;
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> aperiodic task started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 	busy_wait(40, 50);
-	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_REALTIME, &end);
+	t.tv_sec = end.tv_sec;
+	t.tv_nsec = end.tv_nsec;
 	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "\t\taperiodic task ended @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
+	TIME_DIFF(start, end)
+	fprintf(stderr, "\t\taperiodic task ended @ (%ld)s (%.3f)ms\t||\t total execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
 }
