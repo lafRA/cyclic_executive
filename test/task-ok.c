@@ -38,10 +38,10 @@ void task_init() {
 	fprintf(stderr, "task-ok.c: initializing the task set\n");
 	
 	/* Inizializzazione di P_TASKS[] */
-	P_TASKS[1] = task1_code;
-	P_TASKS[2] = task2_code;
-	P_TASKS[3] = task3_code;
-	P_TASKS[4] = task4_code;
+	P_TASKS[0] = task1_code;
+	P_TASKS[1] = task2_code;
+	P_TASKS[2] = task3_code;
+	P_TASKS[3] = task4_code;
 	
 	/* ... */
 
@@ -53,9 +53,9 @@ void task_init() {
 
 	/* frame 0 */
 	SCHEDULE[0] = (int *) malloc( sizeof( int ) * 4 );
-	SCHEDULE[0][0] = 1;
-	SCHEDULE[0][1] = 2;
-	SCHEDULE[0][2] = 4;
+	SCHEDULE[0][0] = 0;
+	SCHEDULE[0][1] = 1;
+	SCHEDULE[0][2] = 3;
 	SCHEDULE[0][3] = -1;
 
 	SLACK[0] = 1; /* tutto il frame */
@@ -63,8 +63,8 @@ void task_init() {
 
 	/* frame 1 */
 	SCHEDULE[1] = (int *) malloc( sizeof( int ) * 3 );
-	SCHEDULE[1][0] = 3;
-	SCHEDULE[1][1] = 2;
+	SCHEDULE[1][0] = 2;
+	SCHEDULE[1][1] = 1;
 	SCHEDULE[1][2] = -1;
 
 	SLACK[1] = 0; /* tutto il frame */
@@ -72,7 +72,7 @@ void task_init() {
 
 	/* frame 2 */
 	SCHEDULE[2] = (int *) malloc( sizeof( int ) * 2 );
-	SCHEDULE[2][0] = 1;
+	SCHEDULE[2][0] = 0;
 	SCHEDULE[2][1] = -1;
 
 	SLACK[2] = 2; /* tutto il frame */
@@ -80,7 +80,7 @@ void task_init() {
 
 	/* frame 3 */
 	SCHEDULE[3] = (int *) malloc( sizeof( int ) * 2 );
-	SCHEDULE[3][0] = 2;
+	SCHEDULE[3][0] = 1;
 	SCHEDULE[3][1] = -1;
 
 	SLACK[3] = 3; /* tutto il frame */

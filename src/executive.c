@@ -212,22 +212,29 @@ int count_task(int schedule[]) {
 void* ap_task_handler(void* arg) {
 	task_data_t* data = (task_data_t*) arg;
 	
+	TRACE_D("ap_task_handler", data->thread_id)
+	
 	while(1) {
 		pthread_mutex_lock(&data->mutex);
 		
 		while(data->state != TASK_PENDING) {
+			PRINT("ap_task_handler", "waiting on 'execute'")
 			pthread_cond_wait(&data->execute, &data->mutex);	//aspetto fino a quando l'execute non mi segnala di eseguire
 		}
+		PRINT("ap_task_handler", "wake up, setting state to TASK_RUNNING")
 		data->state = TASK_RUNNING;				//imposto il mio stato a RUNNING
 		pthread_mutex_unlock(&data->mutex);
 		
 		//eseguo il codice utente
+		PRINT("ap_task_handler", "executing task code")
 		(*AP_TASK)();
+		PRINT("ap_task_handler", "task code complete")
 		
 		
 		pthread_mutex_lock(&executive.mutex);	//acquisisco il mutex dell'executive perchè non voglio essere interrotto tra l'operazione di aggiornamento stato e quella di signal all'executive.
 			//aggiornamento dello stato e signal all'executive eseguite in modo atomico rispetto all'executive
 			pthread_mutex_lock(&data->mutex);
+			PRINT("p_task_handler", "setting state to TASK_COMPLETE")
 			data->state = TASK_COMPLETE;				//imposto il mio stato a COMPLETE
 			pthread_mutex_unlock(&data->mutex);
 			
@@ -248,17 +255,20 @@ void* p_task_handler(void* arg) {
 	while(1) {
 		pthread_mutex_lock(&data->mutex);
 		while(data->state != TASK_PENDING) {
-			PRINT("p_task_handler", "waiting on 'execute'")
+			TRACE_D("p_task_handler::waiting on 'execute'", data->thread_id)
 			pthread_cond_wait(&data->execute, &data->mutex);	//aspetto fino a quando l'execute non mi segnala di eseguire
 		}
-		PRINT("p_task_handler", "wake up, setting state to RUNNING")
+		TRACE_D("p_task_handler::wake up", data->thread_id)
 		data->state = TASK_RUNNING;				//imposto il mio stato a RUNNING
 		pthread_mutex_unlock(&data->mutex);
 		
-		PRINT("p_task_handler", "executing task code")
+		TRACE_D("p_task_handler::executing task code", data->thread_id)
 		(*P_TASKS[data->thread_id])();			//codice utente
 		
+		TRACE_D("p_task_handler::task code complete", data->thread_id)
+		
 		pthread_mutex_lock(&data->mutex);
+		TRACE_D("p_task_handler::setting state tu TASK_COMPLETE", data->thread_id)
 		data->state = TASK_COMPLETE;			//metto il mio stato a COMPLETE
 		pthread_mutex_unlock(&data->mutex);
 	}
@@ -284,6 +294,8 @@ void print_deadline_miss(int index, unsigned long long absolute_frame_num) {
 }
 
 void* executive_handler(void * arg) {
+	PRINT("*********************************************************************", "executive started!!")
+	
 	///				PROLOGO				///
 	//rendiamo l'executive cancellabile:
 	/*pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);	//FIXME: controlla se non va bene
@@ -339,6 +351,7 @@ void* executive_handler(void * arg) {
 	///			LOOP FOREVER			///
 	
 	while(1) {
+		PRINT("========================================================================", "new frame")
 		TRACE_LL("executive::starting loop", frame_count)
 		TRACE_D("executive::starting loop", frame_ind)
 		
