@@ -37,6 +37,7 @@ void task_destroy();
 void ap_task_request();
 
 
+
 /* Nota sulla lista SCHEDULE:
 
    Le routine dei task sono indicate in P_TASKS, quindi possiamo assegnare un id
