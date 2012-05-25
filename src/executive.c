@@ -165,12 +165,6 @@ void destroy() {
 	free(tasks);
 	tasks = 0;
 	
-	//fermo il task aperiodico
-	pthread_cancel(ap_task.thread);			//fermo la sua esecuzione
-	pthread_join(ap_task.thread, NULL);		///FIXME: mettiamo una join per assicurarci che sia terminato prima di distruggere le sue strutture dati??
-	pthread_mutex_destroy(&ap_task.mutex);	//distruggo il mutex
-	pthread_cond_destroy(&ap_task.execute);	//distruggo la condition variable
-	
 	//fermo l'executive
 	//e distruggo le sue strutture dati
 	pthread_cancel(executive.thread);
@@ -404,7 +398,9 @@ void* executive_handler(void * arg) {
 		
 		//se c'è una richiesta di un task aperiodico e c'è abbastanza slack lo eseguo
 		if((ap_request_flag_local == 1) || (ap_task_state_local == TASK_RUNNING)) {
+			TRACE_D("executive::aperiodic test", (ap_request_flag_local == 1) || (ap_task_state_local == TASK_RUNNING))
 			if((ap_request_flag_local == 1) && (ap_task_state_local == TASK_RUNNING)) {
+				TRACE_D("executive::aperiodic test", (ap_request_flag_local == 1) && (ap_task_state_local == TASK_RUNNING))
 				//segnalo la deadline miss
 // 				struct timespec t;
 // 				clock_gettime(CLOCK_REALTIME, &t);
@@ -419,9 +415,11 @@ void* executive_handler(void * arg) {
 				//se c'è stata una richiesta e nessun task aperiodico è in esecuzione devo abbassarla perchè inizio a servirla)
 				//se c'è stata una richiesta e il task aperiodico era in esecuzione devo abbassarla perchè ha generato una deadline miss
 				//se non c'è stata nessuna richiesta e il task era già in esecuzione questa è già bassa
-				pthread_mutex_lock(&ap_request_flag_mutex);
-					ap_request_flag = 0;
-				pthread_mutex_unlock(&ap_request_flag_mutex);		///@fra ho aggiunto il reset del flag di richiesta.. secondo te è giusto così??
+				if(ap_request_flag_local == 1) {
+					pthread_mutex_lock(&ap_request_flag_mutex);
+						ap_request_flag = 0;
+					pthread_mutex_unlock(&ap_request_flag_mutex);		///@fra ho aggiunto il reset del flag di richiesta.. secondo te è giusto così??
+				}
 				
 				//gli alzo la priorità
 				th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1;
@@ -458,6 +456,7 @@ void* executive_handler(void * arg) {
 // 					pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
 					pthread_setschedprio(ap_task.thread, sched_get_priority_min(SCHED_FIFO) + 1);
 				} //else { il task ap ha completato, c'è qualche controllo da fare per garantire l'integrità della cosa???
+				pthread_mutex_unlock(&ap_task.mutex);
 			}
 		}	///@fra mancava questa parentesi, ci vuole, vero??
 			
