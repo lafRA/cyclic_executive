@@ -35,6 +35,8 @@ int * SCHEDULE[NUM_FRAMES_];
 int SLACK[NUM_FRAMES_];
 
 void task_init() {
+	fprintf(stderr, "task-ok.c: initializing the task set\n");
+	
 	/* Inizializzazione di P_TASKS[] */
 	P_TASKS[1] = task1_code;
 	P_TASKS[2] = task2_code;

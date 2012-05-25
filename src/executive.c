@@ -16,13 +16,13 @@
 //----------------DEFINES-------------------//
 #define TIME_UNIT_NS 1e7
 #ifndef	NDEBUG
-	#define	PRINT(x, m) fprintf(stderr, ">> %s --> %s", (x), (m));
-	#define TRACE_D(x, m) fprintf(stderr, ">> %s --> #m = %d", (x), (m));
-	#define TRACE_L(x, m) fprintf(stderr, ">> %s --> #m = %ld", (x), (m));
-	#define TRACE_LL(x, m) fprintf(stderr, ">> %s --> #m = %lld", (x), (m));
-	#define TRACE_F(x, m) fprintf(stderr, ">> %s --> #m = %f", (x), (m));
-	#define TRACE_C(x, m) fprintf(stderr, ">> %s --> #m = %c", (x), (m));
-	#define TRACE_S(x, m) fprintf(stderr, ">> %s --> #m = %s", (x), (m));
+	#define	PRINT(x, m) fprintf(stderr, ">>\t%s --> %s\n", (x), (m));
+	#define TRACE_D(x, m) fprintf(stderr, ">>\t%s --> "#m" = %d\n", (x), (m));
+	#define TRACE_L(x, m) fprintf(stderr, ">>\t%s --> "#m" = %ld\n", (x), (m));
+	#define TRACE_LL(x, m) fprintf(stderr, ">>\t%s --> "#m" = %lld\n", (x), (m));
+	#define TRACE_F(x, m) fprintf(stderr, ">>\t%s --> "#m" = %f\n", (x), (m));
+	#define TRACE_C(x, m) fprintf(stderr, ">>\t%s --> "#m" = %c\n", (x), (m));
+	#define TRACE_S(x, m) fprintf(stderr, ">>\t%s --> "#m" = %s\n", (x), (m));
 #else
 	#define PRINT(x, m)
 	#define TRACE_D(x, m)
@@ -112,7 +112,7 @@ void init() {
 		///NOTE: in questo caso posso accedere allo stato senza il mutex perchè, a questo punto di inizializzazione, non possono esistere altri processi che cercano di accedervi.
 		tasks[i].state = TASK_COMPLETE;
 		//creo il thread con gli attributi desiderati
-		assert(pthread_create(&tasks[i].thread, &th_attr, p_task_handler, (void*)(tasks+i)));
+		assert(pthread_create(&tasks[i].thread, &th_attr, p_task_handler, (void*)(tasks+i)) == 0);
 	}
 	
 	
@@ -125,7 +125,7 @@ void init() {
 	//inizilizzo lo stato del task aperiodico a TASK_COMPLETE
 	ap_task.state = TASK_COMPLETE;
 	//creo il thread con gli attributi desiderati
-	assert(pthread_create(&ap_task.thread, &th_attr, ap_task_handler, (void*)(&ap_task)));
+	assert(pthread_create(&ap_task.thread, &th_attr, ap_task_handler, (void*)(&ap_task)) == 0);
 	
 	//*	CREO L'EXECUTIVE
 	//l'executive detiene sempre la priorità massima
@@ -135,7 +135,7 @@ void init() {
 	sched_attr.sched_priority = sched_get_priority_max(SCHED_FIFO);
 	pthread_attr_setschedparam(&th_attr, &sched_attr);
 	executive.stop_request = 1;
-	assert(pthread_create(&executive.thread, &th_attr, executive_handler, NULL));
+	assert(pthread_create(&executive.thread, &th_attr, executive_handler, NULL) == 0);
 }
 
 void destroy() {
@@ -243,14 +243,19 @@ void* ap_task_handler(void* arg) {
 void* p_task_handler(void* arg) {
 	task_data_t* data = (task_data_t*) arg;
 	
+	TRACE_D("p_task_handler", data->thread_id)
+	
 	while(1) {
 		pthread_mutex_lock(&data->mutex);
 		while(data->state != TASK_PENDING) {
+			PRINT("p_task_handler", "waiting on 'execute'")
 			pthread_cond_wait(&data->execute, &data->mutex);	//aspetto fino a quando l'execute non mi segnala di eseguire
 		}
+		PRINT("p_task_handler", "wake up, setting state to RUNNING")
 		data->state = TASK_RUNNING;				//imposto il mio stato a RUNNING
 		pthread_mutex_unlock(&data->mutex);
 		
+		PRINT("p_task_handler", "executing task code")
 		(*P_TASKS[data->thread_id])();			//codice utente
 		
 		pthread_mutex_lock(&data->mutex);
@@ -325,8 +330,8 @@ void* executive_handler(void * arg) {
 	
 // 	clock_gettime(CLOCK_REALTIME, &time);			//numero di secondi e microsecondi da EPOCH..............FIXME clock_gettime()
 	clock_gettime(CLOCK_REALTIME, &zero_time);
-	TRACE_LL("executive::inizializzazione", zero_time.tv_sec)
-	TRACE_LL("executive::inizializzazione", zero_time.tv_nsec)
+	TRACE_L("executive::inizializzazione", zero_time.tv_sec)
+	TRACE_L("executive::inizializzazione", zero_time.tv_nsec)
 // 	time.tv_sec = utime.tv_sec;
 // 	time.tv_nsec = utime.tv_usec * 1000;
 // 	timeout_expired = 0;
@@ -370,12 +375,21 @@ void* executive_handler(void * arg) {
 // 				fprintf(stderr, "** DEADLINE MISS (APERIODIC TASK) @ (%d)s (%d)ns from start.\n", t.tv_sec, t.tv_nsec);	///@fra ho aggiunto qualche info temporale
 				print_deadline_miss(-1, frame_count);
 			}
+			
 			//slack stealing
-			if(SLACK[frame_ind] > threshold) {		
+			if(SLACK[frame_ind] > threshold) {
+				PRINT("executive", "slack stealing")
+				//se c'è stata una richiesta e nessun task aperiodico è in esecuzione devo abbassarla perchè inizio a servirla)
+				//se c'è stata una richiesta e il task aperiodico era in esecuzione devo abbassarla perchè ha generato una deadline miss
+				//se non c'è stata nessuna richiesta e il task era già in esecuzione questa è già bassa
+				pthread_mutex_lock(&ap_request_flag_mutex);
+					ap_request_flag = 0;
+				pthread_mutex_unlock(&ap_request_flag_mutex);		///@fra ho aggiunto il reset del flag di richiesta.. secondo te è giusto così??
+				
 				//gli alzo la priorità
 				th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1;
 				pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
-					
+				
 				//...e mi metto in attesa
 				time.tv_sec = zero_time.tv_sec;
 				time.tv_nsec = zero_time.tv_nsec;		//inizializzo il tempo a zero_time
@@ -415,6 +429,16 @@ void* executive_handler(void * arg) {
 // 			//TEST pthread_mutex_unlock(&tasks[SCHEDULE[frame_ind - 1][ind]].mutex);
 // 			++ind;
 // 		}
+
+#ifndef	NDEBUG
+		clock_gettime(CLOCK_REALTIME, &time);
+		TIME_DIFF(zero_time, time)
+		TRACE_L("executive::serving periodic tasks", time.tv_sec)
+		TRACE_L("executive::serving periodic tasks", time.tv_nsec)
+#endif
+
+		PRINT("executive","checking for late jobs")
+		
 		ind = 0;
 		frame_prec = (frame_ind + NUM_FRAMES - 1) % NUM_FRAMES;	//indice del frame precedente
 		task_not_completed = 0;
@@ -432,7 +456,6 @@ void* executive_handler(void * arg) {
 				task_not_completed = (tasks[SCHEDULE[frame_prec][i]].state == TASK_RUNNING);
 				if(task_not_completed) {
 					print_deadline_miss(i, frame_count);
-					sched_get_priority_min(SCHED_FIFO);
 					pthread_setschedprio(tasks[SCHEDULE[frame_prec][i]].thread, sched_get_priority_min(SCHED_FIFO));
 // 					ind = i;		//indice del task che è stato trovato ancora RUNNING all'inizio del frame
 				}
@@ -468,20 +491,26 @@ void* executive_handler(void * arg) {
 		 * la priorità dei task "corretti" viene alzata di rit, mentre tutti i task in ritardo guadagnano una priorità a partire da quella più bassa a salire, in modo da essere comunque schedulati per ultimi (con ordine arbitrario).
 		 */
 		dim = count_task(SCHEDULE[frame_ind]);
+		TRACE_D("executive:: scheduling periodic tasks", dim)
 		int rit = 0;	//numero di task in ritardo trovati per la schedule corrente
 		for(i = 0; i < dim; ++i) {
 			//assegnamo le priorità
 			//TEST th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1 - i;
 			//TEST pthread_setschedparam(tasks[SCHEDULE[frame_ind][i]].thread, SCHED_FIFO, &th_param);
 
-			//mettiamo lo stato del task a PENDING
+			TRACE_D("executive::scheduling periodic tasks", SCHEDULE[frame_ind][i])
+			
 			///TEST: pthread_mutex_lock(&tasks[SCHEDULE[frame_ind][i]].mutex);		//per proteggere lo stato e la variabile condizione del task	
 			if(tasks[SCHEDULE[frame_ind][i]].state == TASK_COMPLETE) {
+				//mettiamo lo stato del task a PENDING
+				tasks[SCHEDULE[frame_ind][i]].state = TASK_PENDING;
 				//task che vanno schedulati normalmente
 				pthread_setschedprio(tasks[SCHEDULE[frame_ind][i]].thread, (sched_get_priority_max(SCHED_FIFO) - 1 - i + rit));	//TODO modificare negli aperiodici
+				TRACE_D("executive::scheduling normal periodic tasks", (sched_get_priority_max(SCHED_FIFO) - 1 - i + rit))
 			} else {
 				//task che risultano in ritardo
 				pthread_setschedprio(tasks[SCHEDULE[frame_ind][i]].thread, (sched_get_priority_max(SCHED_FIFO) - dim + rit));
+				TRACE_D("executive::scheduling late periodic tasks", (sched_get_priority_max(SCHED_FIFO) - dim + rit))
 				++rit;
 			}
 			
