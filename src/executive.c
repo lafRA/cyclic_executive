@@ -416,7 +416,7 @@ void* executive_handler(void * arg) {
 				//se non c'è stata nessuna richiesta e il task era già in esecuzione questa è già bassa
 				if(ap_request_flag_local == 1) {
 					pthread_mutex_lock(&ap_request_flag_mutex);
-					ap_request_flag = 0;
+						ap_request_flag = 0;
 					pthread_mutex_unlock(&ap_request_flag_mutex);		///@fra ho aggiunto il reset del flag di richiesta.. secondo te è giusto così??
 				}
 				
@@ -446,6 +446,11 @@ void* executive_handler(void * arg) {
 					TRACE_L("executive_handler::waiting for slack time", time_rel.tv_nsec)
 				}
 #endif	//NDEBUG
+				
+				pthread_mutex_lock(&ap_task.mutex);		//TEST
+				ap_task.state = TASK_PENDING;
+				pthread_mutex_unlock(&ap_task.mutex);		//TEST
+				pthread_cond_signal(&ap_task.execute);
 				
 				pthread_mutex_lock(&ap_task.mutex);
 				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
@@ -487,6 +492,7 @@ void* executive_handler(void * arg) {
 		task_not_completed = 0;
 		int dim = count_task(SCHEDULE[frame_prec]);
 		for(i = 0; i < dim; ++i) {
+			pthread_mutex_lock(&tasks[SCHEDULE[frame_prec][i]].mutex);		//leggo e modifico lo stato dei thread
 			if(task_not_completed) {
 				/// @fra NOTE: Cmake, quando non in modalità debug, definisce automaticamente NDEBUG
 #ifndef	NDEBUG
@@ -503,6 +509,8 @@ void* executive_handler(void * arg) {
 // 					ind = i;		//indice del task che è stato trovato ancora RUNNING all'inizio del frame
 				}
 			}
+			pthread_mutex_unlock(&tasks[SCHEDULE[frame_prec][i]].mutex);
+			
 			///FIXME: è necessario????
 			//abbasso la priorità di tutti i thread
 			pthread_setschedprio(tasks[i].thread, sched_get_priority_min(SCHED_FIFO));
@@ -543,8 +551,10 @@ void* executive_handler(void * arg) {
 			//assegnamo le priorità
 			//TEST th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1 - i;
 			//TEST pthread_setschedparam(tasks[SCHEDULE[frame_ind][i]].thread, SCHED_FIFO, &th_param);
-
+			
 			TRACE_D("executive::scheduling periodic tasks", SCHEDULE[frame_ind][i])
+			
+			pthread_mutex_lock(&tasks[SCHEDULE[frame_ind][i]].mutex);	//per proteggere lo stato e la variabile condizione del task
 			
 			///TEST: pthread_mutex_lock(&tasks[SCHEDULE[frame_ind][i]].mutex);		//per proteggere lo stato e la variabile condizione del task	
 			if(tasks[SCHEDULE[frame_ind][i]].state == TASK_COMPLETE) {
@@ -560,6 +570,7 @@ void* executive_handler(void * arg) {
 				++rit;
 			}
 			
+			pthread_mutex_lock(&tasks[SCHEDULE[frame_ind][i]].mutex);
 			pthread_cond_signal(&tasks[SCHEDULE[frame_ind][i]].execute);
 			///TEST: pthread_mutex_unlock(&tasks[SCHEDULE[frame_ind][i]].mutex);		//per proteggere lo stato e la variabile condizione del task
 		}
