@@ -67,6 +67,7 @@ static executive_data_t executive;				//rappresentazione di pthread dell'executi
 void* executive_handler(void* arg);
 void* p_task_handler(void* arg);
 void* ap_task_handler(void* arg);
+
 //----------------FUNCTION------------------//
 void init() {
 // 	task_destroy();		//nel caso la task_init venga chiamata due volte di fila senza una task_destroy();
@@ -133,7 +134,7 @@ void init() {
 	assert(pthread_create(&executive.thread, &th_attr, executive_handler, NULL));
 }
 
-void task_destroy() {
+void destroy() {
 	///NOTE: utilizzo il valore di tasks per capire se le cose sono già inizilizzate: tasks == 0 |==> niente è ancora stato inizializzato
 	if(tasks == 0) {
 		//non c'è niente da distruggere dato che non c'è nulla di inizializzato
