@@ -65,7 +65,6 @@ static executive_data_t executive;				//rappresentazione di pthread dell'executi
 
 //----------------PROTOTYPE-----------------//
 void* executive_handler(void* arg);
-void* executive_handler(void* arg);
 void* p_task_handler(void* arg);
 void* ap_task_handler(void* arg);
 
