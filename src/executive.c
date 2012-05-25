@@ -64,9 +64,7 @@ static task_data_t* tasks = 0;				//da inizializzare nella funzione ??, e da dis
 static executive_data_t executive;				//rappresentazione di pthread dell'executive
 
 //----------------PROTOTYPE-----------------//
-<<<<<<< .merge_file_Lxp7Ay
-void executive_handler(void* arg);
-
+void* executive_handler(void* arg);
 void* executive_handler(void* arg);
 void* p_task_handler(void* arg);
 void* ap_task_handler(void* arg);
@@ -489,7 +487,9 @@ void* executive_handler(void * arg) {
 }
 
 int main(int argc, char** argv) {
+	task_init();
 	init();
 	pthread_join(executive.thread, NULL);
 	destroy();
+	task_destroy();
 }
