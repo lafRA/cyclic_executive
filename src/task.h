@@ -5,7 +5,7 @@
 #define TIME_DIFF(start, end)\
 	if ((end.tv_nsec-start.tv_nsec)<0) {\
 		end.tv_sec-= start.tv_sec+1;\
-		end.tv_sec-= start.tv_nsec - 1000000000;\
+		end.tv_nsec-= start.tv_nsec - 1000000000;\
 	} else {\
 		end.tv_sec -= start.tv_sec;\
 		end.tv_nsec-= start.tv_nsec;\
