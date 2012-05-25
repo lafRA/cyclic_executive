@@ -379,12 +379,51 @@ void* executive_handler(void * arg) {
 		}
 		pthread_mutex_unlock(&executive.mutex);*/
 		
+		#ifndef	NDEBUG
+		clock_gettime(CLOCK_REALTIME, &time);
+		TIME_DIFF(zero_time, time)
+		TRACE_L("executive::serving periodic tasks", time.tv_sec)
+		TRACE_F("executive::serving periodic tasks", time.tv_nsec/1e6)
+#endif
+
+		PRINT("executive","checking for late jobs")
+		
+		ind = 0;
+		int frame_prec = (frame_ind + NUM_FRAMES - 1) % NUM_FRAMES;	//indice del frame precedente
+		task_not_completed = 0;
+		int dim = count_task(SCHEDULE[frame_prec]);
+		for(i = 0; i < dim; ++i) {
+			pthread_mutex_lock(&tasks[SCHEDULE[frame_prec][i]].mutex);		//leggo e modifico lo stato dei thread
+			if(task_not_completed) {
+				/// @fra NOTE: Cmake, quando non in modalità debug, definisce automaticamente NDEBUG
+#ifndef	NDEBUG
+				assert(tasks[SCHEDULE[frame_prec][i]].state == TASK_PENDING);
+#endif
+				///TEST: provo a scrivere senza acquisire il mutex, tanto l'executive è SEMPRE quello a priorità più elevata
+				print_deadline_miss(i, frame_count);
+				tasks[SCHEDULE[frame_prec][i]].state = TASK_COMPLETE;
+			} else {
+				task_not_completed = (tasks[SCHEDULE[frame_prec][i]].state == TASK_RUNNING);
+				if(task_not_completed) {
+					print_deadline_miss(i, frame_count);
+					pthread_setschedprio(tasks[SCHEDULE[frame_prec][i]].thread, sched_get_priority_min(SCHED_FIFO));
+// 					ind = i;		//indice del task che è stato trovato ancora RUNNING all'inizio del frame
+				}
+			}
+			
+			pthread_mutex_unlock(&tasks[SCHEDULE[frame_prec][i]].mutex);
+			
+			///FIXME: è necessario????
+			//abbasso la priorità di tutti i thread
+			pthread_setschedprio(tasks[i].thread, sched_get_priority_min(SCHED_FIFO));
+		}
+
+		
 		
 		///			SCHEDULING DEI TASK APERIODICI			///
 		//queste variabili mi servono per fare una copia delle variabili protette da mutex che dovrei testare negli if...mi faccio una copia così libero il mutex subito 
 		unsigned char ap_request_flag_local;
 		task_state_t ap_task_state_local;
-		unsigned int frame_prec;
 		
 		//mi faccio le copie
 		pthread_mutex_lock(&ap_request_flag_mutex);
@@ -478,44 +517,6 @@ void* executive_handler(void * arg) {
 // 			++ind;
 // 		}
 
-#ifndef	NDEBUG
-		clock_gettime(CLOCK_REALTIME, &time);
-		TIME_DIFF(zero_time, time)
-		TRACE_L("executive::serving periodic tasks", time.tv_sec)
-		TRACE_F("executive::serving periodic tasks", time.tv_nsec/1e6)
-#endif
-
-		
-		PRINT("executive","checking for late jobs")
-		ind = 0;
-		frame_prec = (frame_ind + NUM_FRAMES - 1) % NUM_FRAMES;	//indice del frame precedente
-		task_not_completed = 0;
-		int dim = count_task(SCHEDULE[frame_prec]);
-		for(i = 0; i < dim; ++i) {
-			pthread_mutex_lock(&tasks[SCHEDULE[frame_prec][i]].mutex);		//leggo e modifico lo stato dei thread
-			if(task_not_completed) {
-				/// @fra NOTE: Cmake, quando non in modalità debug, definisce automaticamente NDEBUG
-#ifndef	NDEBUG
-				assert(tasks[SCHEDULE[frame_prec][i]].state == TASK_PENDING);
-#endif
-				///TEST: provo a scrivere senza acquisire il mutex, tanto l'executive è SEMPRE quello a priorità più elevata
-				print_deadline_miss(i, frame_count);
-				tasks[SCHEDULE[frame_prec][i]].state = TASK_COMPLETE;
-			} else {
-				task_not_completed = (tasks[SCHEDULE[frame_prec][i]].state == TASK_RUNNING);
-				if(task_not_completed) {
-					print_deadline_miss(i, frame_count);
-					pthread_setschedprio(tasks[SCHEDULE[frame_prec][i]].thread, sched_get_priority_min(SCHED_FIFO));
-// 					ind = i;		//indice del task che è stato trovato ancora RUNNING all'inizio del frame
-				}
-			}
-			
-			pthread_mutex_unlock(&tasks[SCHEDULE[frame_prec][i]].mutex);
-			
-			///FIXME: è necessario????
-			//abbasso la priorità di tutti i thread
-			pthread_setschedprio(tasks[i].thread, sched_get_priority_min(SCHED_FIFO));
-		}
 		
 // 		if(task_not_completed) {
 // 			//rimpiazzo la schedule corrente (che dovrei eseguire in questo frame) con una nuova schedule che contiene i task del frame precedente che non hanno ancora eseguito
