@@ -196,7 +196,7 @@ int count_task(int schedule[]) {
 	int i;
 	
 	i = 0;
-	while(schedule[i] = -1) {
+	while(schedule[i] != -1) {
 		++i;
 	}
 	
@@ -274,10 +274,11 @@ void* executive_handler(void * arg) {
 	
 	///				DATI				///
 	
-	unsigned int frame_num;		//indice del frame corrente
-	unsigned int threshold;		//soglia di sicurezza per lo slack stealing
-	int frame_dim;				//dimensione del frame
-	int i;						//indice al task corrente
+	unsigned int frame_ind;				//indice del frame corrente
+	unsigned int threshold;				//soglia di sicurezza per lo slack stealing
+	int frame_dim;						//dimensione del frame
+	unsigned long long frame_count;		//contatore incrementale
+	int i;								//indice al task corrente
 	
 	//unsigned char timeout_expired;		//serve per sapere se è scaduto il timeout della fine del frame
 	struct timespec time;
@@ -293,7 +294,8 @@ void* executive_handler(void * arg) {
 	
 	//inizializzazione delle variabili:
 	frame_dim = H_PERIOD / NUM_FRAMES;
-	frame_num = 0;
+	frame_ind = 0;
+	frame_count = 0;
 	threshold = 1;		//TODO: valore a caso poi decidiamo un valore sensato
 	
 	
@@ -318,6 +320,7 @@ void* executive_handler(void * arg) {
 		//queste variabili mi servono per fare una copia delle variabili protette da mutex che dovrei testare negli if...mi faccio una copia così libero il mutex subito 
 		unsigned char ap_request_flag_local;
 		task_state_t ap_task_state_local;
+		unsigned int frame_prec;
 		
 		//mi faccio le copie
 		pthread_mutex_lock(&ap_request_flag_mutex);
@@ -338,7 +341,7 @@ void* executive_handler(void * arg) {
 				fprintf(stderr, "** DEADLINE MISS (APERIODIC TASK) @ (%d)s (%d)ns from start.\n", t.tv_sec, t.tv_nsec);	///@fra ho aggiunto qualche info temporale
 			}
 			//slack stealing
-			if(SLACK[frame_num] > threshold) {		
+			if(SLACK[frame_ind] > threshold) {		
 				//gli alzo la priorità
 				th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1;
 				pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
@@ -350,7 +353,7 @@ void* executive_handler(void * arg) {
 				pthread_mutex_lock(&ap_task.mutex);
 				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
 					//se scade il timeout abbasso la priorità al task aperiodico così viene eseguito dopo tutti i task periodici, se c'è tempo
-					/*th_param.sched_priority = (sched_get_priority_max(SCHED_FIFO) - 1) - count_task(SCHEDULE[frame_num]);*/	///@fra FIXME: devi mettere sua priorità al minimo consentito perchè, metti che l'ap_task è ancora RUNNING, ma sono in un frame che non ha slack time. Dato k la sua priorità rimane quella impostata al fram prima mi trovo in una situazione in cui un task periodico e quello aperiodico hanno la stessa priorità. dato k lo scheduling è FIFO inoltre viene schedulato quello aperiodico perchè è in coda da più tempo!!!
+					/*th_param.sched_priority = (sched_get_priority_max(SCHED_FIFO) - 1) - count_task(SCHEDULE[frame_ind]);*/	///@fra FIXME: devi mettere sua priorità al minimo consentito perchè, metti che l'ap_task è ancora RUNNING, ma sono in un frame che non ha slack time. Dato k la sua priorità rimane quella impostata al fram prima mi trovo in una situazione in cui un task periodico e quello aperiodico hanno la stessa priorità. dato k lo scheduling è FIFO inoltre viene schedulato quello aperiodico perchè è in coda da più tempo!!!
 					th_param.sched_priority = sched_get_priority_min(SCHED_FIFO);
 					pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
 				} //else { il task ap ha completato, c'è qualche controllo da fare per garantire l'integrità della cosa???
@@ -360,48 +363,75 @@ void* executive_handler(void * arg) {
 		///			SCHEDULING DEI TASK PERIODICI			///
 			
 		//verifico che i task del frame precedente abbiano finito l'esecuzione, se non hanno finito salto le esecuzioni successive e li faccio continuare:			come faccio????????
-		///FIXME
+// 		ind = 0;
+// 		task_not_completed = 0;
+// 		while((!task_not_completed) && (ind < count_task(SCHEDULE[frame_ind - 1]))) {		//fare variabile temp per count_task
+// 			//TEST pthread_mutex_lock(&tasks[SCHEDULE[frame_ind - 1][ind]].mutex);
+// 			if(tasks[SCHEDULE[frame_ind - 1][ind]].state != TASK_COMPLETE) {	//un task del frame precedente non ha terminato
+// 				task_not_completed = 1;
+// 			}
+// 			//TEST pthread_mutex_unlock(&tasks[SCHEDULE[frame_ind - 1][ind]].mutex);
+// 			++ind;
+// 		}
 		ind = 0;
+		frame_prec = (frame_ind + NUM_FRAMES - 1) % NUM_FRAMES;	//indice del frame precedente
 		task_not_completed = 0;
-		while((!task_not_completed) && (ind < count_task(SCHEDULE[frame_num - 1]))) {
-			pthread_mutex_lock(&tasks[SCHEDULE[frame_num - 1][ind]].mutex);
-			if(tasks[SCHEDULE[frame_num - 1][ind]].state != TASK_COMPLETE) {	//un task del frame precedente non ha terminato
-				task_not_completed = 1;
+		int dim = count_task(SCHEDULE[frame_prec]);
+		for(i = 0; i < dim; ++i) {
+			if(task_not_completed) {
+				/// @fra NOTE: Cmake, quando non in modalità debug, definisce automaticamente NDEBUG
+#ifndef	NDEBUG
+				assert(tasks[SCHEDULE[frame_prec][i]].state == TASK_PENDING);
+#endif
+				///TEST: provo a scrivere senza acquisire il mutex, tanto l'executive è SEMPRE quello a priorità più elevata
+				///TODO: print_deadline_miss!!!
+				tasks[SCHEDULE[frame_prec][i]].state = TASK_COMPLETE;
+			} else {
+				task_not_completed = (tasks[SCHEDULE[frame_prec][i]].state == TASK_RUNNING);
+				if(task_not_completed) {
+					///TODO: print_deadline_miss!!!
+					ind = i;		//indice del task che è stato trovato ancora RUNNING all'inizio del frame
+				}
 			}
-			pthread_mutex_unlock(&tasks[SCHEDULE[frame_num - 1][ind]].mutex);
-			++ind;
 		}
 		
-		if(task_not_completed) {
+		if(task_not_completed) {/*
 			//rimpiazzo la schedule corrente (che dovrei eseguire in questo frame) con una nuova schedule che contiene i task del frame precedente che non hanno ancora eseguito
 			--ind;	//mi devo portare l'indice indietro...TODO:ottimizzarlo
 			
 			//ora mi costruisco la schedule nuova:
-			new_num_elements = count_task(SCHEDULE[frame_num - 1]) - ind + 1;			//numero di task che andranno a far parte della nuova schedule
+			new_num_elements = count_task(SCHEDULE[frame_ind - 1]) - ind + 1;			//numero di task che andranno a far parte della nuova schedule
 			
-			//ora dovrei andarli a sostituire in SCHEDULE[frame_num]
-			free(SCHEDULE[frame_num]);		/// @fra FIXME: WTF???? non si tocca la schedule dell'utente!!! O__o
-			SCHEDULE[frame_num] = (int *) malloc( sizeof( int ) * (new_num_elements + 1) );
+			//ora dovrei andarli a sostituire in SCHEDULE[frame_ind]
+			free(SCHEDULE[frame_ind]);		/// @fra FIXME: WTF???? non si tocca la schedule dell'utente!!! O__o
+			SCHEDULE[frame_ind] = (int *) malloc( sizeof( int ) * (new_num_elements + 1) );
 			
 			//ora vado a sostutuire
 			for(i = 0; i < new_num_elements; ++i) {
-				SCHEDULE[frame_num][i] = SCHEDULE[frame_num - 1][ind];
+				SCHEDULE[frame_ind][i] = SCHEDULE[frame_ind - 1][ind];
 				++ind;
 			}
-			SCHEDULE[frame_num][new_num_elements] = -1;
+			SCHEDULE[frame_ind][new_num_elements] = -1;*/
 		}
 		
 		//mettiamo in esecuzione i task:
-		for(i = 0; i < count_task(SCHEDULE[frame_num]); ++i) {
+		dim = count_task(SCHEDULE[frame_ind]);
+		for(i = 0; i < dim; ++i) {
 			//assegnamo le priorità
-			th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1 - i;
-			pthread_setschedparam(tasks[SCHEDULE[frame_num][i]].thread, SCHED_FIFO, &th_param);
-					
+			//TEST th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1 - i;
+			//TEST pthread_setschedparam(tasks[SCHEDULE[frame_ind][i]].thread, SCHED_FIFO, &th_param);
+
 			//mettiamo lo stato del task a PENDING
-			pthread_mutex_lock(&tasks[SCHEDULE[frame_num][i]].mutex);		//per proteggere lo stato e la variabile condizione del task	
-			tasks[SCHEDULE[frame_num][i]].state = TASK_PENDING;
-			pthread_cond_signal(&tasks[SCHEDULE[frame_num][i]].execute);
-			pthread_mutex_unlock(&tasks[SCHEDULE[frame_num][i]].mutex);		//per proteggere lo stato e la variabile condizione del task
+			///TEST: pthread_mutex_lock(&tasks[SCHEDULE[frame_ind][i]].mutex);		//per proteggere lo stato e la variabile condizione del task	
+			if(tasks[SCHEDULE[frame_ind][i]].state == TASK_COMPLETE) {
+				//task che vanno schedulati normalmente
+				pthread_setschedprio(tasks[SCHEDULE[frame_ind][i]].thread, (sched_get_priority_max(SCHED_FIFO) - 1 - i));	//TODO modificare negli aperiodici
+			} else {
+				//task che risultano in ritardo
+			}
+			
+			pthread_cond_signal(&tasks[SCHEDULE[frame_ind][i]].execute);
+			///TEST: pthread_mutex_unlock(&tasks[SCHEDULE[frame_ind][i]].mutex);		//per proteggere lo stato e la variabile condizione del task
 		}
 			
 		time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;			//FIXME: impostare il tempo
@@ -413,13 +443,9 @@ void* executive_handler(void * arg) {
 		pthread_mutex_unlock(&executive.mutex);
 			
 		//non controllo se c'è una richiesta del task aperiodico perchè la mando al frame successivo
-			
-		frame_num++;
-			
-		if(frame_num == NUM_FRAMES) {
-			frame_num = 0;
-		}
-			
+		
+		++frame_count;
+		frame_ind = frame_count % NUM_FRAMES;
 	}
 	return NULL;
 }
