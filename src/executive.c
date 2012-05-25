@@ -4,6 +4,20 @@
 	#define _GNU_SOURCE
 #endif
 
+#ifdef	DEBUG
+	#define	PRINT(x, m) fprintf(stderr, "%s --> #m", (x));
+	#define TRACE_D(x, m) fprintf(stderr, "%s --> #m = %d", (x), (m));
+	#define TRACE_F(x, m) fprintf(stderr, "%s --> #m = %f", (x), (m));
+	#define TRACE_C(x, m) fprintf(stderr, "%s --> #m = %c", (x), (m));
+	#define TRACE_S(x, m) fprintf(stderr, "%s --> #m = %s", (x), (m));
+#else
+	#define PRINT(x, m)
+	#define TRACE_D(x, m)
+	#define TRACE_F(x, m)
+	#define TRACE_C(x, m)
+	#define TRACE_S(x, m)
+#endif	//DEBUG
+
 //file di configurazione esterno (di prova)
 #include "task.h"
 #include <stdio.h>
@@ -50,7 +64,12 @@ static task_data_t* tasks = 0;				//da inizializzare nella funzione ??, e da dis
 static executive_data_t executive;				//rappresentazione di pthread dell'executive
 
 //----------------PROTOTYPE-----------------//
+<<<<<<< .merge_file_Lxp7Ay
 void executive_handler(void* arg);
+
+void* executive_handler(void* arg);
+void* p_task_handler(void* arg);
+void* ap_task_handler(void* arg);
 
 //----------------FUNCTION------------------//
 void init() {
@@ -152,6 +171,21 @@ void task_destroy() {
 	pthread_cond_destroy(&executive.execute);
 	executive.stop_request = 1;
 	
+	
+	//fermo il task aperiodico
+	pthread_cancel(ap_task.thread);			//fermo la sua esecuzione
+	pthread_join(ap_task.thread, NULL);		///FIXME: mettiamo una join per assicurarci che sia terminato prima di distruggere le sue strutture dati??
+	pthread_mutex_destroy(&ap_task.mutex);	//distruggo il mutex
+	pthread_cond_destroy(&ap_task.execute);	//distruggo la condition variable
+	
+	//fermo l'executive
+	//e distruggo le sue strutture dati
+	pthread_canceal(executive.thread);
+	pthead_join(executive.thread, NULL);
+	pthread_mutex_destroy(&executive.mutex);
+	pthread_cond_destroy(&executive.execute);
+	executive.stop_request = 1;
+	
 	return;
 }
 
@@ -194,10 +228,61 @@ int count_task(int schedule[]) {
 	return i;
 }
 
+
+void* ap_task_handler(void* arg) {
+	task_data_t* data = (task_data_t*) arg;
+	
+	while(1) {
+		pthread_mutex_lock(&data->mutex);
+		
+		while(data->state != TASK_PENDING) {
+			pthread_cond_wait(&data->execute, &data->mutex);	//aspetto fino a quando l'execute non mi segnala di eseguire
+		}
+		data->state = TASK_RUNNING;				//imposto il mio stato a RUNNING
+		pthread_mutex_unlock(&data->mutex);
+		
+		//eseguo il codice utente
+		(*AP_TASK)();
+		
+		
+		pthread_mutex_lock(&executive.mutex);	//acquisisco il mutex dell'executive perchè non voglio essere interrotto tra l'operazione di aggiornamento stato e quella di signal all'executive.
+			//aggiornamento dello stato e signal all'executive eseguite in modo atomico rispetto all'executive
+			pthread_mutex_lock(&data->mutex);
+			data->state = TASK_COMPLETE;				//imposto il mio stato a COMPLETE
+			pthread_mutex_unlock(&data->mutex);
+			
+			//se fossi interrotto qui l'executive mi vedrebbe come completato, ma, alla prossima volta che viene schedulato il task aperiodico, invece di iniziare una nuova esecuzione l'unica cosa che fa è segnalare l'executive..andrebbe quindi persa un'intera esecuzione i di task aperiodico.
+			//segnalo all'executive che ho completato
+			pthread_cond_signal(&executive.execute);
+		pthread_mutex_unlock(&executive.mutex);
+	}
+	
+	return NULL;
+}
+
+void* p_task_handler(void* arg) {
+	task_data_t* data = (task_data_t*) arg;
+	
+	while(1) {
+		pthread_mutex_lock(&data->mutex);
+		while(data->state != TASK_PENDING) {
+			pthread_cond_wait(&data->execute, &data->mutex);	//aspetto fino a quando l'execute non mi segnala di eseguire
+		}
+		data->state = TASK_RUNNING;				//imposto il mio stato a RUNNING
+		pthread_mutex_unlock(&data->mutex);
+		
+		(*P_TASKS[data->thread_id])();			//codice utente
+		
+		pthread_mutex_lock(&data->mutex);
+		data->state = TASK_COMPLETE;			//metto il mio stato a COMPLETE
+		pthread_mutex_unlock(&data->mutex);
+	}
+	
+	return NULL;
+}
+
 void executive_handler(void * arg) {
-	
 	///				PROLOGO				///
-	
 	//rendiamo l'executive cancellabile:
 	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);	//FIXME: controlla se non va bene
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
@@ -227,6 +312,7 @@ void executive_handler(void * arg) {
 	
 	unsigned char task_not_completed;	//servirà per controllare se i task del frame precedente hanno terminato
 	int new_num_elements;				//servirà per costruire una nuova schedule
+	int ind;							//servirà per costruire la nuova schedule
 	
 	///			INIZIALIZZAZIONE		///
 	
@@ -399,14 +485,14 @@ void executive_handler(void * arg) {
 		}
 			
 	}
+	return NULL;
 }
 
 int main(int argc, char** argv) {
 	task_init();
 	init();
-	
 	pthread_join(executive.thread);
-	
+	pthread_join(executive.thread, NULL);
 	destroy();
 	task_destroy();
 }
