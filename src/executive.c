@@ -302,7 +302,7 @@ void* executive_handler(void * arg) {
 	
 	///				PROLOGO				///
 	//rendiamo l'executive cancellabile:
-	/*pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);	//FIXME: controlla se non va bene
+	/*pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	
 	//per prima cosa l'executive aspetta il via per l'esecuzione
@@ -339,7 +339,7 @@ void* executive_handler(void * arg) {
 	frame_dim = H_PERIOD / NUM_FRAMES;
 	frame_ind = 0;
 	frame_count = 0;
-	threshold = 1;		//TODO: valore a caso poi decidiamo un valore sensato
+	threshold = 1000000;		//TODO: valore a caso poi decidiamo un valore sensato
 	
 	TRACE_D("executive::inizializzazione", frame_dim)
 	
@@ -409,14 +409,14 @@ void* executive_handler(void * arg) {
 			}
 			
 			//slack stealing
-			if(SLACK[frame_ind] > threshold) {
+			if(SLACK[frame_ind] > 0) {
 				PRINT("executive", "slack stealing")
 				//se c'è stata una richiesta e nessun task aperiodico è in esecuzione devo abbassarla perchè inizio a servirla)
 				//se c'è stata una richiesta e il task aperiodico era in esecuzione devo abbassarla perchè ha generato una deadline miss
 				//se non c'è stata nessuna richiesta e il task era già in esecuzione questa è già bassa
 				if(ap_request_flag_local == 1) {
 					pthread_mutex_lock(&ap_request_flag_mutex);
-						ap_request_flag = 0;
+					ap_request_flag = 0;
 					pthread_mutex_unlock(&ap_request_flag_mutex);		///@fra ho aggiunto il reset del flag di richiesta.. secondo te è giusto così??
 				}
 				
@@ -430,7 +430,7 @@ void* executive_handler(void * arg) {
 				
 				//sommo la quantità di nanosecondi che passa tra lo zero_time e l'inizio di questo frame (contando che frame_count è già stato incrementato)
 				//TIME_UNIT_NS = 10^7 = dimensione del quanto temporale espressa in nanosecondi
-				time.tv_nsec += (TIME_UNIT_NS * frame_dim) * frame_count + (SLACK[frame_ind] - threshold)*TIME_UNIT_NS;
+				time.tv_nsec += (TIME_UNIT_NS * frame_dim) * frame_count + (SLACK[frame_ind])*TIME_UNIT_NS - threshold;
 		
 				//normalizzo la struttura per riportarla in uno stato consistente
 				time.tv_sec += ( time.tv_nsec ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
