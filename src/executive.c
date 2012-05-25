@@ -165,6 +165,12 @@ void destroy() {
 	free(tasks);
 	tasks = 0;
 	
+	//fermo il task aperiodico
+	pthread_cancel(ap_task.thread);			//fermo la sua esecuzione
+	pthread_join(ap_task.thread, NULL);		///FIXME: mettiamo una join per assicurarci che sia terminato prima di distruggere le sue strutture dati??
+	pthread_mutex_destroy(&ap_task.mutex);	//distruggo il mutex
+	pthread_cond_destroy(&ap_task.execute);	//distruggo la condition variable
+	
 	//fermo l'executive
 	//e distruggo le sue strutture dati
 	pthread_cancel(executive.thread);
@@ -340,7 +346,7 @@ void* executive_handler(void * arg) {
 	frame_dim = H_PERIOD / NUM_FRAMES;
 	frame_ind = 0;
 	frame_count = 0;
-	threshold = 1;		//TODO: valore a caso poi decidiamo un valore sensato
+	threshold = 0;		//TODO: valore a caso poi decidiamo un valore sensato
 	
 	TRACE_D("executive::inizializzazione", frame_dim)
 	
@@ -398,9 +404,7 @@ void* executive_handler(void * arg) {
 		
 		//se c'è una richiesta di un task aperiodico e c'è abbastanza slack lo eseguo
 		if((ap_request_flag_local == 1) || (ap_task_state_local == TASK_RUNNING)) {
-			TRACE_D("executive::aperiodic test", (ap_request_flag_local == 1) || (ap_task_state_local == TASK_RUNNING))
 			if((ap_request_flag_local == 1) && (ap_task_state_local == TASK_RUNNING)) {
-				TRACE_D("executive::aperiodic test", (ap_request_flag_local == 1) && (ap_task_state_local == TASK_RUNNING))
 				//segnalo la deadline miss
 // 				struct timespec t;
 // 				clock_gettime(CLOCK_REALTIME, &t);
@@ -415,11 +419,10 @@ void* executive_handler(void * arg) {
 				//se c'è stata una richiesta e nessun task aperiodico è in esecuzione devo abbassarla perchè inizio a servirla)
 				//se c'è stata una richiesta e il task aperiodico era in esecuzione devo abbassarla perchè ha generato una deadline miss
 				//se non c'è stata nessuna richiesta e il task era già in esecuzione questa è già bassa
-				if(ap_request_flag_local == 1) {
-					pthread_mutex_lock(&ap_request_flag_mutex);
-						ap_request_flag = 0;
-					pthread_mutex_unlock(&ap_request_flag_mutex);		///@fra ho aggiunto il reset del flag di richiesta.. secondo te è giusto così??
-				}
+				pthread_mutex_lock(&ap_request_flag_mutex);
+					ap_request_flag = 0;
+				pthread_mutex_unlock(&ap_request_flag_mutex);		///@fra ho aggiunto il reset del flag di richiesta.. secondo te è giusto così??
+			
 				
 				//gli alzo la priorità
 				th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1;
@@ -437,6 +440,7 @@ void* executive_handler(void * arg) {
 				time.tv_sec += ( time.tv_nsec ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
 				time.tv_nsec = ( time.tv_nsec ) % 1000000000;
 				
+				
 #ifndef	NDEBUG
 				{
 					struct timespec time_rel;
@@ -447,6 +451,11 @@ void* executive_handler(void * arg) {
 					TRACE_L("executive_handler::waiting for slack time", time_rel.tv_nsec)
 				}
 #endif	//NDEBUG
+				
+				pthread_mutex_lock(&ap_task.mutex);		//TEST
+				ap_task.state = TASK_PENDING;
+				pthread_cond_signal(&ap_task.execute);
+				pthread_mutex_unlock(&ap_task.mutex);	//TEST
 				
 				pthread_mutex_lock(&ap_task.mutex);
 				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
