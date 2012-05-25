@@ -266,7 +266,7 @@ void print_deadline_miss(int index, int absolute_frame_num) {
 	clock_gettime(CLOCK_REALTIME, &t);
 	TIME_DIFF(zero_time, t)
 	
-	index == 1 ? strcpy(msg, "APERIODIC") : strcpy(msg, "PERIODIC");
+	index == -1 ? strcpy(msg, "APERIODIC") : strcpy(msg, "PERIODIC");
 	
 	fprintf(stderr, "** DEADLINE MISS (%s TASK) @ (%d)s (%d)ns from start in frame %d @ hyperperiod %d.\n", msg, t.tv_sec, t.tv_nsec, absolute_frame_num, hyperperiod);
 }
