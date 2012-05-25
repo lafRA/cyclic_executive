@@ -55,15 +55,12 @@ typedef struct executive_data_ {
 } executive_data_t;
 
 //----------------DATA---------------------//
-
 static unsigned char ap_request_flag = 0;	//flag di richiesta per il task aperiodico 
 static pthread_mutex_t ap_request_flag_mutex; 
 static task_data_t ap_task;
-
 static task_data_t* tasks = 0;				//da inizializzare nella funzione ??, e da distruggere nella funzione ??
-
-
 static executive_data_t executive;				//rappresentazione di pthread dell'executive
+struct timespec zero_time;
 
 //----------------PROTOTYPE-----------------//
 void* executive_handler(void* arg);
@@ -300,9 +297,10 @@ void* executive_handler(void * arg) {
 	threshold = 1;		//TODO: valore a caso poi decidiamo un valore sensato
 	
 	
-	clock_gettime(CLOCK_REALTIME, &time);		//numero di secondi e microsecondi da EPOCH..............FIXME clock_gettime()
-	time.tv_sec = utime.tv_sec;
-	time.tv_nsec = utime.tv_usec * 1000;
+	clock_gettime(CLOCK_REALTIME, &time);			//numero di secondi e microsecondi da EPOCH..............FIXME clock_gettime()
+	clock_gettime(CLOCK_REALTIME, &zero_time);
+// 	time.tv_sec = utime.tv_sec;
+// 	time.tv_nsec = utime.tv_usec * 1000;
 // 	timeout_expired = 0;
 	
 	///			LOOP FOREVER			///
