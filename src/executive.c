@@ -43,7 +43,7 @@ typedef enum {
 typedef struct task_data_ {
 	unsigned int thread_id;		//ID del task: identifica l'indice del puntatore a funzione nell'array P_TASKS
 	task_state_t state;			//indica lo stato del job corrente del task
-	
+	unsigned char init;			//flag che indica se il thread è stato correttamente inizializzato
 	pthread_t thread;			//rappresentazione di pthread del thread
 	pthread_mutex_t mutex;		//mutex per regolare l'accesso allo stato del task
 	pthread_cond_t execute;		//condition variable che segnala quando il job del task può eseguire
@@ -101,6 +101,8 @@ void init() {
 	pthread_attr_setschedparam(&th_attr, &sched_attr);
 	
 	int i;
+	pthread_mutex_t dummy_mutex;
+	pthread_mutex_init(&dummy_mutex, NULL);
 	for(i = 0; i < NUM_P_TASKS; ++i) {
 		//inizializzo il mutex
 		pthread_mutex_init(&tasks[i].mutex, NULL);
@@ -108,11 +110,16 @@ void init() {
 		pthread_cond_init(&tasks[i].execute, NULL);
 		//inizializzo l'ID del thread come l'indice con cui lo creo
 		tasks[i].thread_id = i;
+		tasks[i].init = 0;
 		//inizilizzo lo stato del task a TASK_COMPLETE
 		///NOTE: in questo caso posso accedere allo stato senza il mutex perchè, a questo punto di inizializzazione, non possono esistere altri processi che cercano di accedervi.
 		tasks[i].state = TASK_COMPLETE;
 		//creo il thread con gli attributi desiderati
 		assert(pthread_create(&tasks[i].thread, &th_attr, p_task_handler, (void*)(tasks+i)) == 0);
+		
+		pthread_mutex_lock(&dummy_mutex);
+		pthread_cond_wait(&tasks[i].execute, &dummy_mutex);	//prima di procedere devo essere sicuro che il task sia creato e inizializzato
+		pthread_mutex_unlock(&dummy_mutex);
 	}
 	
 	
@@ -255,6 +262,10 @@ void* p_task_handler(void* arg) {
 	while(1) {
 		pthread_mutex_lock(&data->mutex);
 		while(data->state != TASK_PENDING) {
+			if(data->init == 0) {
+				data->init = 1;
+				pthread_cond_signal(&data->execute);		//segnalo all'init() che sono stato creato
+			}
 			TRACE_D("p_task_handler::waiting on 'execute'", data->thread_id)
 			pthread_cond_wait(&data->execute, &data->mutex);	//aspetto fino a quando l'execute non mi segnala di eseguire
 		}
