@@ -137,7 +137,7 @@ void init() {
 	assert(pthread_create(&executive.thread, &th_attr, executive_handler, NULL));
 }
 
-void task_destroy() {
+void destroy() {
 	///NOTE: utilizzo il valore di tasks per capire se le cose sono già inizilizzate: tasks == 0 |==> niente è ancora stato inizializzato
 	if(tasks == 0) {
 		//non c'è niente da distruggere dato che non c'è nulla di inizializzato
