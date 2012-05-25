@@ -313,10 +313,11 @@ void* executive_handler(void * arg) {
 		
 		
 		///			SCHEDULING DEI TASK APERIODICI			///
+		//queste variabili mi servono per fare una copia delle variabili protette da mutex che dovrei testare negli if...mi faccio una copia così libero il mutex subito 
 		unsigned char ap_request_flag_local;
 		task_state_t ap_task_state_local;
 		
-		
+		//mi faccio le copie
 		pthread_mutex_lock(&ap_request_flag_mutex);
 		ap_request_flag_local = ap_request_flag;
 		pthread_mutex_unlock(&ap_request_flag_mutex);
@@ -326,7 +327,7 @@ void* executive_handler(void * arg) {
 		pthread_mutex_unlock(&ap_task.mutex);
 		
 		//se c'è una richiesta di un task aperiodico e c'è abbastanza slack lo eseguo
-		if(ap_task_request_flag) {			//c'è una richiesta per un task aperiodico
+		if(ap_task_request_flag_local) {			//c'è una richiesta per un task aperiodico
 			if(ap_task_state_local != TASK_COMPLETE) {		//c'è una richiesta ma l'istanza precedente non ha ancora terminato	
 				//segnalo la deadline miss
 				fprintf(stderr, "DEADLINE MISS (APERIODIC TASK) \n");
