@@ -256,19 +256,21 @@ void* p_task_handler(void* arg) {
 	return NULL;
 }
 
-void print_deadline_miss(int index, int absolute_frame_num) {
+void print_deadline_miss(int index, unsigned long long absolute_frame_num) {
 	struct timespec t;
 	int hyperperiod;
-	char msg[10];
 	
 	hyperperiod = absolute_frame_num / NUM_FRAMES;
 	
 	clock_gettime(CLOCK_REALTIME, &t);
 	TIME_DIFF(zero_time, t)
 	
-	index == -1 ? strcpy(msg, "APERIODIC") : strcpy(msg, "PERIODIC");
+	if(index == -1) {
+		fprintf(stderr, "** DEADLINE MISS (APERIODIC TASK) @ (%d)s (%d)ns from start\n\tframe %d @ hyperperiod %d.\n", t.tv_sec, t.tv_nsec, absolute_frame_num % NUM_FRAMES, hyperperiod);
+	} else  {
+		fprintf(stderr, "** DEADLINE MISS (PERIODIC TASK %d) @ (%d)s (%d)ns from start\n\tframe %d @ hyperperiod %d.\n", index, t.tv_sec, t.tv_nsec, absolute_frame_num % NUM_FRAMES, hyperperiod);
+	}
 	
-	fprintf(stderr, "** DEADLINE MISS (%s TASK) @ (%d)s (%d)ns from start in frame %d @ hyperperiod %d.\n", msg, t.tv_sec, t.tv_nsec, absolute_frame_num, hyperperiod);
 }
 
 void* executive_handler(void * arg) {
