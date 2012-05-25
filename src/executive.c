@@ -281,7 +281,7 @@ void* p_task_handler(void* arg) {
 	return NULL;
 }
 
-void executive_handler(void * arg) {
+void* executive_handler(void * arg) {
 	///				PROLOGO				///
 	//rendiamo l'executive cancellabile:
 	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);	//FIXME: controlla se non va bene
@@ -322,7 +322,7 @@ void executive_handler(void * arg) {
 	threshold = 1;		//TODO: valore a caso poi decidiamo un valore sensato
 	
 	
-	clock_gettime(CLOCK_REALTIME, &utime, NULL);		//numero di secondi e microsecondi da EPOCH..............FIXME clock_gettime()
+	clock_gettime(CLOCK_REALTIME, &time);		//numero di secondi e microsecondi da EPOCH..............FIXME clock_gettime()
 	time.tv_sec = utime.tv_sec;
 	time.tv_nsec = utime.tv_usec * 1000;
 	timeout_expired = 0;
@@ -341,9 +341,9 @@ void executive_handler(void * arg) {
 		///			SCHEDULING DEI TASK APERIODICI			///
 		
 		//se c'è una richiesta di un task aperiodico e c'è abbastanza slack lo eseguo
-		pthread_mutex_lock(&ap_request_frag_mutex);
+		pthread_mutex_lock(&ap_request_flag_mutex);
 		if(ap_task_request) {			//c'è una richiesta per un task aperiodico
-			pthread_mutex_unlock(&ap_request_frag_mutex);
+			pthread_mutex_unlock(&ap_request_flag_mutex);
 			
 			pthread_mutex_lock(&ap_task.mutex);
 			if(ap_task.state != TASK_COMPLETE) {		//c'è una richiesta ma l'istanza precedente non ha ancora terminato
@@ -362,13 +362,13 @@ void executive_handler(void * arg) {
 					time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
 					time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
 					
-					pthread_mutex_lock(&ap_execute_mutex);
-					if(pthread_cond_timedwait(&ap_execute_cond, &ap_execute_mutex, &time) == ETIMEOUT) {
+					pthread_mutex_lock(&ap_task.mutex);
+					if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
 						//se scade il timeout abbasso la priorità al task aperiodico così viene eseguito dopo tutti i task periodici, se c'è tempo
 						th_param.sched_priority = (sched_get_priority_max(SCHED_FIFO) - 1) - count_task(SCHEDULE[frame_num]);
 						pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
 					}
-					pthread_mutex_unlock(&ap_execute_mutex);
+					pthread_mutex_unlock(&ap_task.mutex);
 				}
 			}
 			else {				//c'è una nuova richiesta e l'istanza precedente ha completato
@@ -383,17 +383,17 @@ void executive_handler(void * arg) {
 				time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
 				 
 				//metto l'executive in attesa che finisca il task aperiodico oppure che finisca lo slack time a disposizione:
-				pthread_mutex_lock(&ap_execute_mutex);
-				if(pthread_cond_timedwait(&ap_execute_cond, &ap_execute_mutex, &time) == ETIMEOUT) {
+				pthread_mutex_lock(&ap_task.mutex);
+				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
 					//se scade il timeout abbasso la priorità al task aperiodico così viene eseguito dopo tutti i task periodici, se c'è tempo
 					th_param.sched_priority = (sched_get_priority_max(SCHED_FIFO) - 1) - count_task(SCHEDULE[frame_num]);
 					pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
 				}
-				pthread_mutex_unlock(&ap_execute_mutex);
+				pthread_mutex_unlock(&ap_task.mutex);
 			}
 		}
 		else {							//non c'è una nuova richiesta
-			pthread_mutex_unlock(&ap_request_frag_mutex);
+			pthread_mutex_unlock(&ap_request_flag_mutex);
 			
 			pthread_mutex_lock(&ap_task.mutex);
 			if(ap_task.state != TASK_COMPLETE) {		//se c'è un'istanza precedente che deve completare
@@ -407,13 +407,13 @@ void executive_handler(void * arg) {
 				time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
 				time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
 					
-				pthread_mutex_lock(&ap_execute_mutex);
-				if(pthread_cond_timedwait(&ap_execute_cond, &ap_execute_mutex, &time) == ETIMEOUT) {
+				pthread_mutex_lock(&ap_task.mutex);
+				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
 					//se scade il timeout abbasso la priorità al task aperiodico così viene eseguito dopo tutti i task periodici, se c'è tempo
 					th_param.sched_priority = (sched_get_priority_max(SCHED_FIFO) - 1) - count_task(SCHEDULE[frame_num]);
 					pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
 				}
-				pthread_mutex_unlock(&ap_execute_mutex);
+				pthread_mutex_unlock(&ap_task.mutex);
 			}
 			else {
 				pthread_mutex_lock(&ap_task.mutex);
@@ -427,9 +427,9 @@ void executive_handler(void * arg) {
 		//verifico che i task del frame precedente abbiano finito l'esecuzione, se non hanno finito salto le esecuzioni successive e li faccio continuare:			come faccio????????
 		ind = 0;
 		task_not_completed = 0;
-		while((!task_not_completed) && (ind < count_task(SCHEDULE[frame_num - 1])) {
+		while((!task_not_completed) && (ind < count_task(SCHEDULE[frame_num - 1]))) {
 			pthead_mutex_lock(&tasks[SCHEDULE[frame_num - 1][ind]].mutex);
-			if(tasks[SCHEDULE[frame_num - 1][ind]].state != COMPLETE) {	//un task del frame precedente non ha terminato
+			if(tasks[SCHEDULE[frame_num - 1][ind]].state != TASK_COMPLETE) {	//un task del frame precedente non ha terminato
 				task_not_completed = 1;
 			}
 			pthead_mutex_unlock(&tasks[SCHEDULE[frame_num - 1][ind]].mutex);
@@ -456,16 +456,16 @@ void executive_handler(void * arg) {
 		}
 		
 		//mettiamo in esecuzione i task:
-		for(i = 0; i < count_task(SCHEDULE[frame_num])E; ++i) {
+		for(i = 0; i < count_task(SCHEDULE[frame_num]); ++i) {
 			//assegnamo le priorità
 			th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1 - i;
-			pthread_setschedparam(tasks[SCHED[frame_num][i]].thread, SCHED_FIFO, &th_param);
+			pthread_setschedparam(tasks[SCHEDULE[frame_num][i]].thread, SCHED_FIFO, &th_param);
 					
 			//mettiamo lo stato del task a PENDING
-			pthread_mutex_lock(&tasks[SCHEDULE[frame_nume][i]]->mutex);		//per proteggere lo stato e la variabile condizione del task	
-			tasks[SCHEDULE[frame_nume][i]]->state = PENDING;
-			pthread_cond_signal(&tasks[SCHEDULE[frame_nume][i]]->execute);
-			pthread_mutex_unlock(&tasks[SCHEDULE[frame_nume][i]]->mutex);		//per proteggere lo stato e la variabile condizione del task
+			pthread_mutex_lock(&tasks[SCHEDULE[frame_num][i]].mutex);		//per proteggere lo stato e la variabile condizione del task	
+			tasks[SCHEDULE[frame_num][i]].state = TASK_PENDING;
+			pthread_cond_signal(&tasks[SCHEDULE[frame_num][i]].execute);
+			pthread_mutex_unlock(&tasks[SCHEDULE[frame_num][i]].mutex);		//per proteggere lo stato e la variabile condizione del task
 		}
 			
 		time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;			//FIXME: impostare il tempo
@@ -473,7 +473,7 @@ void executive_handler(void * arg) {
 			
 		//mi metto in attesa che finisca il tempo del frame:
 		pthread_mutex_lock(&executive.mutex);
-		while(pthread_cond_timedwait(&executive.execute, &executive.mutex, &time) != ETIMEOUT) ; 
+		while(pthread_cond_timedwait(&executive.execute, &executive.mutex, &time) != ETIMEDOUT) ; 
 		pthread_mutex_unlock(&executive.mutex);
 			
 		//non controllo se c'è una richiesta del task aperiodico perchè la mando al frame successivo
@@ -489,10 +489,7 @@ void executive_handler(void * arg) {
 }
 
 int main(int argc, char** argv) {
-	task_init();
 	init();
-	pthread_join(executive.thread);
 	pthread_join(executive.thread, NULL);
 	destroy();
-	task_destroy();
 }
