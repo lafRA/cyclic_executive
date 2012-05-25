@@ -369,6 +369,15 @@ void* executive_handler(void * arg) {
 		TRACE_LL("executive::starting loop", frame_count)
 		TRACE_D("executive::starting loop", frame_ind)
 		
+	#ifndef	NDEBUG
+		{
+			clock_gettime(CLOCK_REALTIME, &time);
+			TIME_DIFF(zero_time, time)
+			TRACE_L("executive_handler::wake up @", time.tv_sec)
+			TRACE_L("executive_handler::wake up @", time.tv_nsec)
+		}
+#endif	//NDEBUG
+		
 		//controlliamo se posso procedere con l'esecuzione o se l'executive è in pausa:
 		/*pthread_mutex_lock(&executive.mutex);	//per proteggere la variabile executive.stop_request
 		while(executive.stop_request) {
@@ -426,8 +435,8 @@ void* executive_handler(void * arg) {
 				time.tv_nsec += (TIME_UNIT_NS * frame_dim) * frame_count + (SLACK[frame_ind] - threshold)*TIME_UNIT_NS;
 		
 				//normalizzo la struttura per riportarla in uno stato consistente
-				time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
-				time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
+				time.tv_sec += ( time.tv_nsec ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
+				time.tv_nsec = ( time.tv_nsec ) % 1000000000;
 				
 #ifndef	NDEBUG
 				{
@@ -572,8 +581,8 @@ void* executive_handler(void * arg) {
 		time.tv_nsec += (TIME_UNIT_NS * frame_dim) * frame_count;
 		
 		//normalizzo la struttura per riportarla in uno stato consistente
-		time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;	
-		time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
+		time.tv_sec += ( time.tv_nsec ) / 1000000000;	
+		time.tv_nsec = ( time.tv_nsec ) % 1000000000;
 		
 #ifndef	NDEBUG
 		{
