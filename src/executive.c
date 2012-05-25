@@ -382,7 +382,15 @@ void* executive_handler(void * arg) {
 		}
 		pthread_mutex_unlock(&executive.mutex);*/
 		
-		#ifndef	NDEBUG
+		//queste variabili mi servono per fare una copia delle variabili protette da mutex che dovrei testare negli if...mi faccio una copia così libero il mutex subito 
+		
+		///			VERIFICA CHE JOB ABBIANO TERMINATO			///
+		
+		unsigned char ap_request_flag_local;
+		task_state_t ap_task_state_local;
+		unsigned int frame_prec;
+		
+#ifndef	NDEBUG
 		clock_gettime(CLOCK_REALTIME, &time);
 		TIME_DIFF(zero_time, time)
 		TRACE_L("executive::serving periodic tasks", time.tv_sec)
@@ -424,10 +432,7 @@ void* executive_handler(void * arg) {
 		
 		
 		///			SCHEDULING DEI TASK APERIODICI			///
-		//queste variabili mi servono per fare una copia delle variabili protette da mutex che dovrei testare negli if...mi faccio una copia così libero il mutex subito 
-		unsigned char ap_request_flag_local;
-		task_state_t ap_task_state_local;
-		unsigned int frame_prec;
+		
 		
 		//mi faccio le copie
 		pthread_mutex_lock(&ap_request_flag_mutex);
