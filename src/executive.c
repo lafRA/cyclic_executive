@@ -262,7 +262,7 @@ void* p_task_handler(void* arg) {
 void* executive_handler(void * arg) {
 	///				PROLOGO				///
 	//rendiamo l'executive cancellabile:
-	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);	//FIXME: controlla se non va bene
+	/*pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);	//FIXME: controlla se non va bene
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	
 	//per prima cosa l'executive aspetta il via per l'esecuzione
@@ -270,10 +270,10 @@ void* executive_handler(void * arg) {
 	while(executive.stop_request) {
 		pthread_cond_wait(&executive.execute, &executive.mutex);
 	}
-	pthread_mutex_unlock(&executive.mutex);
+	pthread_mutex_unlock(&executive.mutex);*/
 	
 	//ora controllo che il numero di frame sia corretto, se il numero di frame non è un divisore della linghezza dell'iperperiodo allora la dimensione del frame è sbagliata ed è inutile continuare
-	assert((H_PERIOD % NUM_FRAMES) != 0);
+	assert((H_PERIOD % NUM_FRAMES) == 0);
 	
 	///				DATI				///
 	
@@ -282,9 +282,8 @@ void* executive_handler(void * arg) {
 	int frame_dim;				//dimensione del frame
 	int i;						//indice al task corrente
 	
-	unsigned char timeout_expired;		//serve per sapere se è scaduto il timeout della fine del frame
+	//unsigned char timeout_expired;		//serve per sapere se è scaduto il timeout della fine del frame
 	struct timespec time;
-	struct timeval utime;
 	
 	struct sched_param th_param;		//per modificare la priorità dei thread
 	
@@ -301,32 +300,34 @@ void* executive_handler(void * arg) {
 	
 	
 	clock_gettime(CLOCK_REALTIME, &time);		//numero di secondi e microsecondi da EPOCH..............FIXME clock_gettime()
-	time.tv_sec = utime.tv_sec;
-	time.tv_nsec = utime.tv_usec * 1000;
-	timeout_expired = 0;
 	
 	///			LOOP FOREVER			///
 	
 	while(1) {
 		//controlliamo se posso procedere con l'esecuzione o se l'executive è in pausa:
-		pthread_mutex_lock(&executive.mutex);	//per proteggere la variabile executive.stop_request
+		/*pthread_mutex_lock(&executive.mutex);	//per proteggere la variabile executive.stop_request
 		while(executive.stop_request) {
 			pthread_cond_wait(&executive.execute, &executive.mutex);
 		}
-		pthread_mutex_unlock(&executive.mutex);
+		pthread_mutex_unlock(&executive.mutex);*/
 		
 		
 		///			SCHEDULING DEI TASK APERIODICI			///
+		unsigned char ap_request_flag_local;
+		task_state_t ap_task_state_local;
+		
+		
+		pthread_mutex_lock(&ap_request_flag_mutex);
+		ap_request_flag_local = ap_request_flag;
+		pthread_mutex_unlock(&ap_request_flag_mutex);
+		
+		pthread_mutex_lock(&ap_task.mutex);
+		ap_task_state_local = ap_task.state;
+		pthread_mutex_unlock(&ap_task.mutex);
 		
 		//se c'è una richiesta di un task aperiodico e c'è abbastanza slack lo eseguo
-		pthread_mutex_lock(&ap_request_flag_mutex);
-		if(ap_task_request) {			//c'è una richiesta per un task aperiodico
-			pthread_mutex_unlock(&ap_request_flag_mutex);
-			
-			pthread_mutex_lock(&ap_task.mutex);
-			if(ap_task.state != TASK_COMPLETE) {		//c'è una richiesta ma l'istanza precedente non ha ancora terminato
-				pthread_mutex_unlock(&ap_task.mutex);
-				
+		if(ap_task_request_flag) {			//c'è una richiesta per un task aperiodico
+			if(ap_task_state_local != TASK_COMPLETE) {		//c'è una richiesta ma l'istanza precedente non ha ancora terminato	
 				//segnalo la deadline miss
 				fprintf(stderr, "DEADLINE MISS (APERIODIC TASK) \n");
 				
@@ -350,9 +351,7 @@ void* executive_handler(void * arg) {
 				}
 			}
 			else {				//c'è una nuova richiesta e l'istanza precedente ha completato
-				//pthread_mutex_unlock(&ap_task.mutex);
-				
-				//pthread_mutex_lock(&ap_task.mutex);
+				pthread_mutex_lock(&ap_task.mutex);
 				ap_task.state = TASK_PENDING;
 				pthread_cond_signal(&ap_task.execute);
 				pthread_mutex_unlock(&ap_task.mutex);
@@ -371,11 +370,7 @@ void* executive_handler(void * arg) {
 			}
 		}
 		else {							//non c'è una nuova richiesta
-			pthread_mutex_unlock(&ap_request_flag_mutex);
-			
-			pthread_mutex_lock(&ap_task.mutex);
-			if(ap_task.state != TASK_COMPLETE) {		//se c'è un'istanza precedente che deve completare
-				pthread_mutex_unlock(&ap_task.mutex);
+			if(ap_task_state_local != TASK_COMPLETE) {		//se c'è un'istanza precedente che deve completare
 				
 				//continuo la sua esecuzione dandogli una priorità alta:
 				th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1;
@@ -392,11 +387,6 @@ void* executive_handler(void * arg) {
 					pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
 				}
 				pthread_mutex_unlock(&ap_task.mutex);
-			}
-			else {
-				pthread_mutex_lock(&ap_task.mutex);
-				
-				//bho!!
 			}
 		}
 			
