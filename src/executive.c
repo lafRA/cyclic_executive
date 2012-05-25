@@ -87,12 +87,13 @@ void init() {
 	pthread_attr_setschedpolicy(&th_attr, SCHED_FIFO);
 	
 #ifdef MULTIPROC
+#define MULTIPROC
 	//anche su un sistema monoprocessore voglio che i task siano schedulati su un singolo core
 	cpu_set_t cpuset;
 	CPU_ZERO(&cpuset);
 	CPU_SET(0, &cpuset);
 	//affinità al processore 0
-	pthread_attr_setaffinity(&th_attr, sizeof(cpu_set_t), &cpuset);
+	pthread_attr_setaffinity_np(&th_attr, sizeof(cpu_set_t), &cpuset);
 #endif
 	
 	//priorità dei thread: di default la pongo al minimo realtime
@@ -423,8 +424,8 @@ void* executive_handler(void * arg) {
 				time.tv_nsec += (TIME_UNIT_NS * frame_dim) * frame_count + (SLACK[frame_ind] - threshold)*TIME_UNIT_NS;
 		
 				//normalizzo la struttura per riportarla in uno stato consistente
-				time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
-				time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
+				time.tv_sec += ( time.tv_nsec ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
+				time.tv_nsec = ( time.tv_nsec ) % 1000000000;
 				
 				TRACE_L("executive_handler::waiting for slack time", time.tv_sec)
 				TRACE_L("executive_handler::waiting for slack time", time.tv_nsec)
@@ -558,8 +559,8 @@ void* executive_handler(void * arg) {
 		time.tv_nsec += (TIME_UNIT_NS * frame_dim) * frame_count;
 		
 		//normalizzo la struttura per riportarla in uno stato consistente
-		time.tv_sec += ( time.tv_nsec + 1000000000 ) / 1000000000;	
-		time.tv_nsec = ( time.tv_nsec + 1000000000 ) % 1000000000;
+		time.tv_sec += ( time.tv_nsec ) / 1000000000;	
+		time.tv_nsec = ( time.tv_nsec ) % 1000000000;
 		
 		TRACE_L("executive_handler::waiting for next frame", time.tv_sec)
 		TRACE_L("executive_handler::waiting for next frame", time.tv_nsec)
