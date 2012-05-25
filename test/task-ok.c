@@ -72,7 +72,7 @@ void task_init() {
 
 	/* frame 2 */
 	SCHEDULE[2] = (int *) malloc( sizeof( int ) * 2 );
-	SCHEDULE[2][0] = 0;
+	SCHEDULE[2][0] = 2;
 	SCHEDULE[2][1] = -1;
 
 	SLACK[2] = 2; /* tutto il frame */
