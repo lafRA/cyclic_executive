@@ -274,10 +274,11 @@ void* executive_handler(void * arg) {
 	
 	///				DATI				///
 	
-	unsigned int frame_num;		//indice del frame corrente
-	unsigned int threshold;		//soglia di sicurezza per lo slack stealing
-	int frame_dim;				//dimensione del frame
-	int i;						//indice al task corrente
+	unsigned int frame_num;				//indice del frame corrente
+	unsigned int threshold;				//soglia di sicurezza per lo slack stealing
+	int frame_dim;						//dimensione del frame
+	unsigned long long frame_count;		//contatore incrementale
+	int i;								//indice al task corrente
 	
 	//unsigned char timeout_expired;		//serve per sapere se è scaduto il timeout della fine del frame
 	struct timespec time;
@@ -294,6 +295,7 @@ void* executive_handler(void * arg) {
 	//inizializzazione delle variabili:
 	frame_dim = H_PERIOD / NUM_FRAMES;
 	frame_num = 0;
+	frame_count = 0;
 	threshold = 1;		//TODO: valore a caso poi decidiamo un valore sensato
 	
 	
@@ -318,6 +320,7 @@ void* executive_handler(void * arg) {
 		//queste variabili mi servono per fare una copia delle variabili protette da mutex che dovrei testare negli if...mi faccio una copia così libero il mutex subito 
 		unsigned char ap_request_flag_local;
 		task_state_t ap_task_state_local;
+		unsigned int frame_prec;
 		
 		//mi faccio le copie
 		pthread_mutex_lock(&ap_request_flag_mutex);
@@ -350,24 +353,22 @@ void* executive_handler(void * arg) {
 				pthread_mutex_lock(&ap_task.mutex);
 				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
 					//se scade il timeout abbasso la priorità al task aperiodico così viene eseguito dopo tutti i task periodici, se c'è tempo
-					/*th_param.sched_priority = (sched_get_priority_max(SCHED_FIFO) - 1) - count_task(SCHEDULE[frame_num]);*/	///@fra FIXME: devi mettere sua priorità al minimo consentito perchè, metti che l'ap_task è ancora RUNNING, ma sono in un frame che non ha slack time. Dato k la sua priorità rimane quella impostata al fram prima mi trovo in una situazione in cui un task periodico e quello aperiodico hanno la stessa priorità. dato k lo scheduling è FIFO inoltre viene schedulato quello aperiodico perchè è in coda da più tempo!!!
 					th_param.sched_priority = sched_get_priority_min(SCHED_FIFO);
 					pthread_setschedparam(ap_task.thread, SCHED_FIFO, &th_param);
 				} //else { il task ap ha completato, c'è qualche controllo da fare per garantire l'integrità della cosa???
 			}
-		}	///@fra mancava questa parentesi, ci vuole, vero??
-			
+		}
 		///			SCHEDULING DEI TASK PERIODICI			///
 			
 		//verifico che i task del frame precedente abbiano finito l'esecuzione, se non hanno finito salto le esecuzioni successive e li faccio continuare:			come faccio????????
-		ind = 0;
+		ind = 0;		//dichiara qui
 		task_not_completed = 0;
-		while((!task_not_completed) && (ind < count_task(SCHEDULE[frame_num - 1]))) {
-			pthread_mutex_lock(&tasks[SCHEDULE[frame_num - 1][ind]].mutex);
+		while((!task_not_completed) && (ind < count_task(SCHEDULE[frame_num - 1]))) {		//fare variabile temp per count_task
+			//TEST pthread_mutex_lock(&tasks[SCHEDULE[frame_num - 1][ind]].mutex);
 			if(tasks[SCHEDULE[frame_num - 1][ind]].state != TASK_COMPLETE) {	//un task del frame precedente non ha terminato
 				task_not_completed = 1;
 			}
-			pthread_mutex_unlock(&tasks[SCHEDULE[frame_num - 1][ind]].mutex);
+			//TEST pthread_mutex_unlock(&tasks[SCHEDULE[frame_num - 1][ind]].mutex);
 			++ind;
 		}
 		
@@ -393,8 +394,9 @@ void* executive_handler(void * arg) {
 		//mettiamo in esecuzione i task:
 		for(i = 0; i < count_task(SCHEDULE[frame_num]); ++i) {
 			//assegnamo le priorità
-			th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1 - i;
-			pthread_setschedparam(tasks[SCHEDULE[frame_num][i]].thread, SCHED_FIFO, &th_param);
+			//TEST th_param.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1 - i;
+			//TEST pthread_setschedparam(tasks[SCHEDULE[frame_num][i]].thread, SCHED_FIFO, &th_param);
+			pthread_setschedprio(tasks[SCHEDULE[frame_num][i]].thread, (sched_get_priority_max(SCHED_FIFO) - 1 - i));	//TODO modificare negli aperiodici
 					
 			//mettiamo lo stato del task a PENDING
 			pthread_mutex_lock(&tasks[SCHEDULE[frame_num][i]].mutex);		//per proteggere lo stato e la variabile condizione del task	
@@ -412,13 +414,9 @@ void* executive_handler(void * arg) {
 		pthread_mutex_unlock(&executive.mutex);
 			
 		//non controllo se c'è una richiesta del task aperiodico perchè la mando al frame successivo
-			
-		frame_num++;
-			
-		if(frame_num == NUM_FRAMES) {
-			frame_num = 0;
-		}
-			
+		
+		++frame_count;
+		frame_num = frame_count % NUM_FRAMES;
 	}
 	return NULL;
 }
