@@ -1,3 +1,6 @@
+
+#define MULTIPROC
+
 /* traccia dell'executive (pseudocodice) */
 #ifdef MULTIPROC
 	//sistema multiprocessore
@@ -87,7 +90,6 @@ void init() {
 	pthread_attr_setschedpolicy(&th_attr, SCHED_FIFO);
 	
 #ifdef MULTIPROC
-#define MULTIPROC
 	//anche su un sistema monoprocessore voglio che i task siano schedulati su un singolo core
 	cpu_set_t cpuset;
 	CPU_ZERO(&cpuset);
@@ -454,8 +456,9 @@ void* executive_handler(void * arg) {
 				
 				pthread_mutex_lock(&ap_task.mutex);		//TEST
 				ap_task.state = TASK_PENDING;
-				pthread_cond_signal(&ap_task.execute);
 				pthread_mutex_unlock(&ap_task.mutex);	//TEST
+				pthread_cond_signal(&ap_task.execute);
+				
 				
 				pthread_mutex_lock(&ap_task.mutex);
 				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
