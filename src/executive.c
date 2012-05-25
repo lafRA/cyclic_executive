@@ -370,6 +370,15 @@ void* executive_handler(void * arg) {
 		TRACE_LL("executive::starting loop", frame_count)
 		TRACE_D("executive::starting loop", frame_ind)
 		
+	#ifndef	NDEBUG
+		{
+			clock_gettime(CLOCK_REALTIME, &time);
+			TIME_DIFF(zero_time, time)
+			TRACE_L("executive_handler::wake up @", time.tv_sec)
+			TRACE_L("executive_handler::wake up @", time.tv_nsec)
+		}
+#endif	//NDEBUG
+		
 		//controlliamo se posso procedere con l'esecuzione o se l'executive è in pausa:
 		/*pthread_mutex_lock(&executive.mutex);	//per proteggere la variabile executive.stop_request
 		while(executive.stop_request) {

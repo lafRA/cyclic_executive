@@ -4,13 +4,12 @@
 /* Macro per calcolare la differenza di tempo*/
 #define TIME_DIFF(start, end)\
 	if ((end.tv_nsec-start.tv_nsec)<0) {\
-		end.tv_sec-= start.tv_sec+1;\
-		end.tv_nsec-= start.tv_nsec - 1000000000;\
+		end.tv_sec = end.tv_sec - start.tv_sec - 1;\
+		end.tv_nsec = (end.tv_nsec + 1000000000) - start.tv_nsec ;\
 	} else {\
 		end.tv_sec -= start.tv_sec;\
 		end.tv_nsec-= start.tv_nsec;\
 	}
-	
 
 /* Puntatore a funzione per una task-routine */
 typedef void (* task_routine)();
