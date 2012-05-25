@@ -121,11 +121,11 @@ void task1_code() {
 	struct timespec t;
 	clock_gettime(CLOCK_REALTIME, &t);
 	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "----> task1 started @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
+	fprintf(stderr, "----> task1 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 	busy_wait(15, 20);
 	clock_gettime(CLOCK_REALTIME, &t);
 	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "\t\ttask1 ended @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
+	fprintf(stderr, "\t\ttask1 ended @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 }
 
 void task2_code() {
@@ -135,7 +135,7 @@ void task2_code() {
 	
 	clock_gettime(CLOCK_REALTIME, &t);
 	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "----> task2 started @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
+	fprintf(stderr, "----> task2 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 	
 	busy_wait(5, 10);
 	
@@ -148,7 +148,7 @@ void task2_code() {
 	
 	clock_gettime(CLOCK_REALTIME, &t);
 	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "\t\ttask2 ended @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
+	fprintf(stderr, "\t\ttask2 ended @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 }
 
 void task3_code() {
@@ -156,11 +156,11 @@ void task3_code() {
 	struct timespec t;
 	clock_gettime(CLOCK_REALTIME, &t);
 	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "----> task3 started @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
+	fprintf(stderr, "----> task3 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 	busy_wait(20, 40);
 	clock_gettime(CLOCK_REALTIME, &t);
 	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "\t\ttask3 ended @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
+	fprintf(stderr, "\t\ttask3 ended @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 }
 
 void task4_code() {
@@ -168,11 +168,11 @@ void task4_code() {
 	struct timespec t;
 	clock_gettime(CLOCK_REALTIME, &t);
 	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "----> task4 started @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
+	fprintf(stderr, "----> task4 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 	busy_wait(5, 10);
 	clock_gettime(CLOCK_REALTIME, &t);
 	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "\t\ttask4 ended @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
+	fprintf(stderr, "\t\ttask4 ended @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 }
 
 void ap_task_code() {
@@ -180,9 +180,9 @@ void ap_task_code() {
 	struct timespec t;
 	clock_gettime(CLOCK_REALTIME, &t);
 	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "----> aperiodic task started @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
+	fprintf(stderr, "----> aperiodic task started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 	busy_wait(40, 50);
 	clock_gettime(CLOCK_REALTIME, &t);
 	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "\t\taperiodic task ended @ (%ld)s (%ld)ns\n", t.tv_sec, t.tv_nsec);
+	fprintf(stderr, "\t\taperiodic task ended @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 }

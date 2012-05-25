@@ -23,7 +23,7 @@
 	#define TRACE_D(x, m) fprintf(stderr, ">>\t%s --> "#m" = %d\n", (x), (m));
 	#define TRACE_L(x, m) fprintf(stderr, ">>\t%s --> "#m" = %ld\n", (x), (m));
 	#define TRACE_LL(x, m) fprintf(stderr, ">>\t%s --> "#m" = %lld\n", (x), (m));
-	#define TRACE_F(x, m) fprintf(stderr, ">>\t%s --> "#m" = %f\n", (x), (m));
+	#define TRACE_F(x, m) fprintf(stderr, ">>\t%s --> "#m" = %.3f\n", (x), (m));
 	#define TRACE_C(x, m) fprintf(stderr, ">>\t%s --> "#m" = %c\n", (x), (m));
 	#define TRACE_S(x, m) fprintf(stderr, ">>\t%s --> "#m" = %s\n", (x), (m));
 #else
@@ -350,7 +350,7 @@ void* executive_handler(void * arg) {
 // 	clock_gettime(CLOCK_REALTIME, &time);			//numero di secondi e microsecondi da EPOCH..............FIXME clock_gettime()
 	clock_gettime(CLOCK_REALTIME, &zero_time);
 	TRACE_L("executive::inizializzazione", zero_time.tv_sec)
-	TRACE_L("executive::inizializzazione", zero_time.tv_nsec)
+	TRACE_F("executive::inizializzazione", zero_time.tv_nsec/1e6)
 // 	time.tv_sec = utime.tv_sec;
 // 	time.tv_nsec = utime.tv_usec * 1000;
 // 	timeout_expired = 0;
@@ -371,7 +371,7 @@ void* executive_handler(void * arg) {
 			clock_gettime(CLOCK_REALTIME, &time);
 			TIME_DIFF(zero_time, time)
 			TRACE_L("executive_handler::wake up @", time.tv_sec)
-			TRACE_L("executive_handler::wake up @", time.tv_nsec)
+			TRACE_F("executive_handler::wake up @", time.tv_nsec/1e6)
 		}
 #endif	//NDEBUG
 		
@@ -446,7 +446,7 @@ void* executive_handler(void * arg) {
 					time_rel.tv_nsec = time.tv_nsec;
 					TIME_DIFF(zero_time, time_rel)
 					TRACE_L("executive_handler::waiting for slack time", time_rel.tv_sec)
-					TRACE_L("executive_handler::waiting for slack time", time_rel.tv_nsec)
+					TRACE_F("executive_handler::waiting for slack time", time_rel.tv_nsec/1e6)
 				}
 #endif	//NDEBUG
 				
@@ -489,7 +489,7 @@ void* executive_handler(void * arg) {
 		clock_gettime(CLOCK_REALTIME, &time);
 		TIME_DIFF(zero_time, time)
 		TRACE_L("executive::serving periodic tasks", time.tv_sec)
-		TRACE_L("executive::serving periodic tasks", time.tv_nsec)
+		TRACE_F("executive::serving periodic tasks", time.tv_nsec/1e6)
 #endif
 
 		PRINT("executive","checking for late jobs")
@@ -516,6 +516,7 @@ void* executive_handler(void * arg) {
 // 					ind = i;		//indice del task che è stato trovato ancora RUNNING all'inizio del frame
 				}
 			}
+			
 			pthread_mutex_unlock(&tasks[SCHEDULE[frame_prec][i]].mutex);
 			
 			///FIXME: è necessario????
@@ -608,7 +609,7 @@ void* executive_handler(void * arg) {
 			time_rel.tv_nsec = time.tv_nsec;
 			TIME_DIFF(zero_time, time_rel)
 			TRACE_L("executive_handler::waiting for next frame", time_rel.tv_sec)
-			TRACE_L("executive_handler::waiting for next frame", time_rel.tv_nsec)
+			TRACE_F("executive_handler::waiting for next frame", time_rel.tv_nsec/1e6)
 		}
 #endif	//NDEBUG
 		
