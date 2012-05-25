@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <time.h>
+#include <unistd.h>
 
 /* Lunghezza dell'iperperiodo */
 #define H_PERIOD_ 20
@@ -36,6 +37,8 @@ int SLACK[NUM_FRAMES_];
 
 void task_init() {
 	fprintf(stderr, "task-ok.c: initializing the task set\n");
+	
+	srand(getpid());
 	
 	/* Inizializzazione di P_TASKS[] */
 	P_TASKS[0] = task1_code;
@@ -72,7 +75,7 @@ void task_init() {
 
 	/* frame 2 */
 	SCHEDULE[2] = (int *) malloc( sizeof( int ) * 2 );
-	SCHEDULE[2][0] = 0;
+	SCHEDULE[2][0] = 2;
 	SCHEDULE[2][1] = -1;
 
 	SLACK[2] = 2; /* tutto il frame */

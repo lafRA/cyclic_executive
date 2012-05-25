@@ -485,8 +485,8 @@ void* executive_handler(void * arg) {
 		TRACE_F("executive::serving periodic tasks", time.tv_nsec/1e6)
 #endif
 
-		PRINT("executive","checking for late jobs")
 		
+		PRINT("executive","checking for late jobs")
 		ind = 0;
 		frame_prec = (frame_ind + NUM_FRAMES - 1) % NUM_FRAMES;	//indice del frame precedente
 		task_not_completed = 0;
