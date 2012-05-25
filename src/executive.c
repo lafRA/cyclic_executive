@@ -360,6 +360,7 @@ void* executive_handler(void * arg) {
 		///			SCHEDULING DEI TASK PERIODICI			///
 			
 		//verifico che i task del frame precedente abbiano finito l'esecuzione, se non hanno finito salto le esecuzioni successive e li faccio continuare:			come faccio????????
+		///FIXME
 		ind = 0;
 		task_not_completed = 0;
 		while((!task_not_completed) && (ind < count_task(SCHEDULE[frame_num - 1]))) {
@@ -379,7 +380,7 @@ void* executive_handler(void * arg) {
 			new_num_elements = count_task(SCHEDULE[frame_num - 1]) - ind + 1;			//numero di task che andranno a far parte della nuova schedule
 			
 			//ora dovrei andarli a sostituire in SCHEDULE[frame_num]
-			free(SCHEDULE[frame_num]);
+			free(SCHEDULE[frame_num]);		/// @fra FIXME: WTF???? non si tocca la schedule dell'utente!!! O__o
 			SCHEDULE[frame_num] = (int *) malloc( sizeof( int ) * (new_num_elements + 1) );
 			
 			//ora vado a sostutuire
