@@ -102,8 +102,6 @@ void init() {
 	pthread_attr_setschedparam(&th_attr, &sched_attr);
 	
 	int i;
-	pthread_mutex_t dummy_mutex;
-	pthread_mutex_init(&dummy_mutex, NULL);
 	for(i = 0; i < NUM_P_TASKS; ++i) {
 		//inizializzo il mutex
 		pthread_mutex_init(&tasks[i].mutex, NULL);
@@ -115,12 +113,13 @@ void init() {
 		//inizilizzo lo stato del task a TASK_COMPLETE
 		///NOTE: in questo caso posso accedere allo stato senza il mutex perchè, a questo punto di inizializzazione, non possono esistere altri processi che cercano di accedervi.
 		tasks[i].state = TASK_COMPLETE;
+		
+		//la priorità crescente garantisce che tutti vengano effettivamente inizializzati
+		sched_attr.sched_priority = sched_get_priority_min(SCHED_FIFO)+i;
+		
+		pthread_attr_setschedparam(&th_attr, &sched_attr);
 		//creo il thread con gli attributi desiderati
 		assert(pthread_create(&tasks[i].thread, &th_attr, p_task_handler, (void*)(tasks+i)) == 0);
-		
-		pthread_mutex_lock(&dummy_mutex);
-		pthread_cond_wait(&tasks[i].execute, &dummy_mutex);	//prima di procedere devo essere sicuro che il task sia creato e inizializzato
-		pthread_mutex_unlock(&dummy_mutex);
 	}
 	
 	
@@ -270,7 +269,7 @@ void* p_task_handler(void* arg) {
 			TRACE_D("p_task_handler::waiting on 'execute'", data->thread_id)
 			pthread_cond_wait(&data->execute, &data->mutex);	//aspetto fino a quando l'execute non mi segnala di eseguire
 		}
-		TRACE_D("p_task_handler::wake up", data->thread_id)
+		TRACE_D("p_task_handler::wake up, setting state to TASK_RUNNING", data->thread_id)
 		data->state = TASK_RUNNING;				//imposto il mio stato a RUNNING
 		pthread_mutex_unlock(&data->mutex);
 		
@@ -360,6 +359,10 @@ void* executive_handler(void * arg) {
 // 	time.tv_nsec = utime.tv_usec * 1000;
 // 	timeout_expired = 0;
 	
+	for(i = 0; i < NUM_P_TASKS; ++i) {
+		pthread_setschedprio(tasks[i].thread, sched_get_priority_min(SCHED_FIFO));
+	}
+	
 	///			LOOP FOREVER			///
 	
 	while(1) {
@@ -427,8 +430,16 @@ void* executive_handler(void * arg) {
 				time.tv_sec += ( time.tv_nsec ) / 1000000000;		//TODO: come timeout mettiamo lo slack-threshold se il task aperiodico finisce prima il server sveglia l'executive
 				time.tv_nsec = ( time.tv_nsec ) % 1000000000;
 				
-				TRACE_L("executive_handler::waiting for slack time", time.tv_sec)
-				TRACE_L("executive_handler::waiting for slack time", time.tv_nsec)
+#ifndef	NDEBUG
+				{
+					struct timespec time_rel;
+					time_rel.tv_sec = time.tv_sec;
+					time_rel.tv_nsec = time.tv_nsec;
+					TIME_DIFF(zero_time, time_rel)
+					TRACE_L("executive_handler::waiting for slack time", time_rel.tv_sec)
+					TRACE_L("executive_handler::waiting for slack time", time_rel.tv_nsec)
+				}
+#endif	//NDEBUG
 				
 				pthread_mutex_lock(&ap_task.mutex);
 				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
@@ -485,6 +496,9 @@ void* executive_handler(void * arg) {
 // 					ind = i;		//indice del task che è stato trovato ancora RUNNING all'inizio del frame
 				}
 			}
+			///FIXME: è necessario????
+			//abbasso la priorità di tutti i thread
+			pthread_setschedprio(tasks[i].thread, sched_get_priority_min(SCHED_FIFO));
 		}
 		
 // 		if(task_not_completed) {
@@ -562,8 +576,16 @@ void* executive_handler(void * arg) {
 		time.tv_sec += ( time.tv_nsec ) / 1000000000;	
 		time.tv_nsec = ( time.tv_nsec ) % 1000000000;
 		
-		TRACE_L("executive_handler::waiting for next frame", time.tv_sec)
-		TRACE_L("executive_handler::waiting for next frame", time.tv_nsec)
+#ifndef	NDEBUG
+		{
+			struct timespec time_rel;
+			time_rel.tv_sec = time.tv_sec;
+			time_rel.tv_nsec = time.tv_nsec;
+			TIME_DIFF(zero_time, time_rel)
+			TRACE_L("executive_handler::waiting for next frame", time_rel.tv_sec)
+			TRACE_L("executive_handler::waiting for next frame", time_rel.tv_nsec)
+		}
+#endif	//NDEBUG
 		
 		//mi metto in attesa che finisca il tempo del frame:
 		pthread_mutex_lock(&executive.mutex);
