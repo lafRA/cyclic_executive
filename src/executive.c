@@ -290,9 +290,9 @@ void print_deadline_miss(int index, unsigned long long absolute_frame_num) {
 	TIME_DIFF(zero_time, t)
 	
 	if(index == -1) {
-		fprintf(stderr, "** DEADLINE MISS (APERIODIC TASK) @ (%ld)s (%ld)ns from start\n\tframe %lld @ hyperperiod %d.\n", t.tv_sec, t.tv_nsec, absolute_frame_num % NUM_FRAMES, hyperperiod);
+		fprintf(stderr, "** DEADLINE MISS (APERIODIC TASK) @ (%ld)s (%.3f)ms from start\n\tframe %lld @ hyperperiod %d.\n", t.tv_sec, t.tv_nsec/1e6, absolute_frame_num % NUM_FRAMES, hyperperiod);
 	} else  {
-		fprintf(stderr, "** DEADLINE MISS (PERIODIC TASK %d) @ (%ld)s (%ld)ns from start\n\tframe %lld @ hyperperiod %d.\n", index, t.tv_sec, t.tv_nsec, absolute_frame_num % NUM_FRAMES, hyperperiod);
+		fprintf(stderr, "** DEADLINE MISS (PERIODIC TASK %d) @ (%ld)s (%.3)ms from start\n\tframe %lld @ hyperperiod %d.\n", index, t.tv_sec, t.tv_nsec/1e6, absolute_frame_num % NUM_FRAMES, hyperperiod);
 	}
 	
 }
