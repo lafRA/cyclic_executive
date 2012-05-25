@@ -36,7 +36,8 @@ void task_destroy();
 /* Richiede il rilascio del task aperiodico */
 void ap_task_request();
 
-
+/* L'origine dei tempi nella nostra scala temporale */
+extern struct timespec zero_time;
 
 /* Nota sulla lista SCHEDULE:
 

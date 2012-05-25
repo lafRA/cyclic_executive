@@ -59,11 +59,9 @@ typedef struct executive_data_ {
 static unsigned char ap_request_flag = 0;	//flag di richiesta per il task aperiodico 
 static pthread_mutex_t ap_request_flag_mutex; 
 static task_data_t ap_task;
-
 static task_data_t* tasks = 0;				//da inizializzare nella funzione ??, e da distruggere nella funzione ??
-
-
 static executive_data_t executive;				//rappresentazione di pthread dell'executive
+struct timespec zero_time;
 
 //----------------PROTOTYPE-----------------//
 void* executive_handler(void* arg);
@@ -159,23 +157,10 @@ void destroy() {
 	//fermo il task aperiodico
 	pthread_cancel(ap_task.thread);			//fermo la sua esecuzione
 	pthread_join(ap_task.thread, NULL);		///FIXME: mettiamo una join per assicurarci che sia terminato prima di distruggere le sue strutture dati??
-	pthread_mutex_destroy(&ap_task.mutex);	//distruggo il mutex
+	pthread_mutex_destroy(&ap_task.mutex);		//distruggo il mutex
 	pthread_cond_destroy(&ap_task.execute);	//distruggo la condition variable
-	
-	//fermo l'executive
-	//e distruggo le sue strutture dati
-	pthread_cancel(executive.thread);
-	pthread_join(executive.thread, NULL);
-	pthread_mutex_destroy(&executive.mutex);
-	pthread_cond_destroy(&executive.execute);
-	executive.stop_request = 1;
-	
-	
-	//fermo il task aperiodico
-	pthread_cancel(ap_task.thread);			//fermo la sua esecuzione
-	pthread_join(ap_task.thread, NULL);		///FIXME: mettiamo una join per assicurarci che sia terminato prima di distruggere le sue strutture dati??
-	pthread_mutex_destroy(&ap_task.mutex);	//distruggo il mutex
-	pthread_cond_destroy(&ap_task.execute);	//distruggo la condition variable
+	pthread_mutex_destroy(&ap_request_flag_mutex);		//distruggo il mutex che protegge il flag
+	ap_request_flag = 0;								//e abbasso il flag
 	
 	//fermo l'executive
 	//e distruggo le sue strutture dati
@@ -297,10 +282,11 @@ void* executive_handler(void * arg) {
 	//inizializzazione delle variabili:
 	frame_dim = H_PERIOD / NUM_FRAMES;
 	frame_num = 0;
-	threshold = 1;		//TODO: valore a caso poi decidiamo un valore sensato
+	threshold = 1;							//TODO: valore a caso poi decidiamo un valore sensato
 	
 	
 	clock_gettime(CLOCK_REALTIME, &time);		//numero di secondi e microsecondi da EPOCH..............FIXME clock_gettime()
+	clock_gettime(CLOCK_REALTIME, &zero_time);
 	time.tv_sec = utime.tv_sec;
 	time.tv_nsec = utime.tv_usec * 1000;
 	timeout_expired = 0;
