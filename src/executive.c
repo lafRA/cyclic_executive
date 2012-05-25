@@ -615,7 +615,17 @@ void* executive_handler(void * arg) {
 		
 		//mi metto in attesa che finisca il tempo del frame:
 		pthread_mutex_lock(&executive.mutex);
-		while(pthread_cond_timedwait(&executive.execute, &executive.mutex, &time) != ETIMEDOUT) ; 
+		while(pthread_cond_timedwait(&executive.execute, &executive.mutex, &time) != ETIMEDOUT) {
+			#ifndef	NDEBUG
+		{
+			struct timespec time_rel;
+			clock_gettime(CLOCK_REALTIME, &time_rel);
+			TIME_DIFF(zero_time, time_rel)
+			TRACE_L("executive_handler::aperiodic task completed", time_rel.tv_sec)
+			TRACE_F("executive_handler::aperiodic task completed", time_rel.tv_nsec/1e6)
+		}
+#endif	//NDEBUG
+		}
 		pthread_mutex_unlock(&executive.mutex);
 	}
 	return NULL;
