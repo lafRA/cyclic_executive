@@ -1,6 +1,3 @@
-
-#define MULTIPROC
-
 /* traccia dell'executive (pseudocodice) */
 #ifdef MULTIPROC
 	//sistema multiprocessore
@@ -293,9 +290,9 @@ void print_deadline_miss(int index, unsigned long long absolute_frame_num) {
 	TIME_DIFF(zero_time, t)
 	
 	if(index == -1) {
-		fprintf(stderr, "** DEADLINE MISS (APERIODIC TASK) @ (%ld)s (%ld)ns from start\n\tframe %lld @ hyperperiod %d.\n", t.tv_sec, t.tv_nsec, absolute_frame_num % NUM_FRAMES, hyperperiod);
+		fprintf(stderr, "** DEADLINE MISS (APERIODIC TASK) @ (%ld)s (%.3f)ms from start\n\tframe %lld @ hyperperiod %d.\n", t.tv_sec, t.tv_nsec/1e6, absolute_frame_num % NUM_FRAMES, hyperperiod);
 	} else  {
-		fprintf(stderr, "** DEADLINE MISS (PERIODIC TASK %d) @ (%ld)s (%ld)ns from start\n\tframe %lld @ hyperperiod %d.\n", index, t.tv_sec, t.tv_nsec, absolute_frame_num % NUM_FRAMES, hyperperiod);
+		fprintf(stderr, "** DEADLINE MISS (PERIODIC TASK %d) @ (%ld)s (%.3)ms from start\n\tframe %lld @ hyperperiod %d.\n", index, t.tv_sec, t.tv_nsec/1e6, absolute_frame_num % NUM_FRAMES, hyperperiod);
 	}
 	
 }
@@ -386,9 +383,9 @@ void* executive_handler(void * arg) {
 		
 		///			VERIFICA CHE JOB ABBIANO TERMINATO			///
 		
-		unsigned char ap_request_flag_local;
-		task_state_t ap_task_state_local;
-		unsigned int frame_prec;
+// 		unsigned char ap_request_flag_local;
+// 		task_state_t ap_task_state_local;
+// 		unsigned int frame_prec;
 		
 #ifndef	NDEBUG
 		clock_gettime(CLOCK_REALTIME, &time);
@@ -400,7 +397,7 @@ void* executive_handler(void * arg) {
 		PRINT("executive","checking for late jobs")
 		
 		ind = 0;
-		frame_prec = (frame_ind + NUM_FRAMES - 1) % NUM_FRAMES;	//indice del frame precedente
+		int frame_prec = (frame_ind + NUM_FRAMES - 1) % NUM_FRAMES;	//indice del frame precedente
 		task_not_completed = 0;
 		int dim = count_task(SCHEDULE[frame_prec]);
 		for(i = 0; i < dim; ++i) {
@@ -432,7 +429,9 @@ void* executive_handler(void * arg) {
 		
 		
 		///			SCHEDULING DEI TASK APERIODICI			///
-		
+		//queste variabili mi servono per fare una copia delle variabili protette da mutex che dovrei testare negli if...mi faccio una copia così libero il mutex subito 
+		unsigned char ap_request_flag_local;
+		task_state_t ap_task_state_local;
 		
 		//mi faccio le copie
 		pthread_mutex_lock(&ap_request_flag_mutex);
@@ -497,10 +496,6 @@ void* executive_handler(void * arg) {
 				
 				pthread_mutex_lock(&ap_task.mutex);		//TEST
 				ap_task.state = TASK_PENDING;
-				
-				pthread_mutex_unlock(&ap_task.mutex);	//TEST
-				pthread_cond_signal(&ap_task.execute);
-				
 				pthread_mutex_unlock(&ap_task.mutex);		//TEST
 				pthread_cond_signal(&ap_task.execute);
 				

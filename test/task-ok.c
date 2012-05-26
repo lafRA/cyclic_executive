@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <time.h>
+#include <unistd.h>
 
 /* Lunghezza dell'iperperiodo */
 #define H_PERIOD_ 20
@@ -36,6 +37,8 @@ int SLACK[NUM_FRAMES_];
 
 void task_init() {
 	fprintf(stderr, "task-ok.c: initializing the task set\n");
+	
+	srand(getpid());
 	
 	/* Inizializzazione di P_TASKS[] */
 	P_TASKS[0] = task1_code;
@@ -97,19 +100,29 @@ void task_destroy() {
 /**********************************************************/
 
 void busy_wait(unsigned int best, unsigned int worst) {
-	struct timeval actual;
-	struct timeval final;
+	//struct timeval actual;
+	//struct timeval final;
+	struct timespec actual;
+	struct timespec final;
 	
-	gettimeofday(&actual, NULL);
+	//gettimeofday(&actual, NULL);
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &actual);	
 	
 	unsigned int millisec = best + rand() % (worst - best + 1);
 	
-	final.tv_sec = actual.tv_sec + (actual.tv_usec + millisec * 1000) / 1000000;
-	final.tv_usec = (actual.tv_usec + millisec * 1000) % 1000000;
+	//final.tv_sec = actual.tv_sec + (actual.tv_usec + millisec * 1000) / 1000000;
+	//final.tv_usec = (actual.tv_usec + millisec * 1000) % 1000000;
 	
-	do {
-		gettimeofday(&actual, NULL);
-	} while (actual.tv_sec < final.tv_sec || (actual.tv_sec == final.tv_sec && actual.tv_usec < final.tv_usec));
+	final.tv_sec = actual.tv_sec + (actual.tv_nsec + millisec * 1000000) / 1000000000;
+	final.tv_nsec = (actual.tv_nsec + millisec * 1000000) % 1000000000;
+	
+// 	do {
+// 		gettimeofday(&actual, NULL);
+// 	} while (actual.tv_sec < final.tv_sec || (actual.tv_sec == final.tv_sec && actual.tv_usec < final.tv_usec));
+	
+		do {
+		clock_gettime(CLOCK_THREAD_CPUTIME_ID, &actual);	
+	} while (actual.tv_sec < final.tv_sec || (actual.tv_sec == final.tv_sec && actual.tv_nsec < final.tv_nsec));
 }
 
 /**********************************************************/
