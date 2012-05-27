@@ -71,6 +71,7 @@ static task_data_t* tasks = 0;				//da inizializzare nella funzione ??, e da dis
 static executive_data_t executive;				//rappresentazione di pthread dell'executive
 struct timespec zero_time;
 
+int selected_cpu = 0;
 //----------------PROTOTYPE-----------------//
 void* executive_handler(void* arg);
 void* p_task_handler(void* arg);
@@ -94,7 +95,7 @@ void init() {
 	//anche su un sistema monoprocessore voglio che i task siano schedulati su un singolo core
 	cpu_set_t cpuset;
 	CPU_ZERO(&cpuset);
-	CPU_SET(0, &cpuset);
+	CPU_SET(selected_cpu, &cpuset);
 	//affinità al processore 0
 	pthread_attr_setaffinity_np(&th_attr, sizeof(cpu_set_t), &cpuset);
 #endif
@@ -370,6 +371,8 @@ void* executive_handler(void * arg) {
 			TRACE_F("executive::inizializzazione", zero_time.tv_nsec/1e6)
 		}
 		
+		fprintf(stderr, "================================================================================ --> frame (%d) @ hyperperiod (%lld)\n", frame_ind, frame_count / NUM_FRAMES);
+		
 		PRINT("========================================================================", "new frame")
 		TRACE_LL("executive::starting loop", frame_count)
 		TRACE_D("executive::starting loop", frame_ind)
@@ -400,9 +403,9 @@ void* executive_handler(void * arg) {
 			pthread_mutex_lock(&tasks[SCHEDULE[frame_prec][i]].mutex);		//leggo e modifico lo stato dei thread
 			if(task_not_completed) {
 				/// @fra NOTE: Cmake, quando non in modalità debug, definisce automaticamente NDEBUG
-#ifndef	NDEBUG
-				assert(tasks[SCHEDULE[frame_prec][i]].state == TASK_PENDING);
-#endif
+// #ifndef	NDEBUG
+// 				assert(tasks[SCHEDULE[frame_prec][i]].state == TASK_PENDING);
+// #endif
 				///TEST: provo a scrivere senza acquisire il mutex, tanto l'executive è SEMPRE quello a priorità più elevata
 				print_deadline_miss(SCHEDULE[frame_prec][i], frame_count, 1);
 				tasks[SCHEDULE[frame_prec][i]].state = TASK_COMPLETE;
@@ -647,6 +650,12 @@ void* executive_handler(void * arg) {
 }
 
 int main(int argc, char** argv) {
+	if(argc == 2) {					///@fra ho aggiunto la possibilità di specificare la cpu a cui assegnare la schedule.. utile se vuoi fare andare due istanze insieme (di default è la 0)
+		int cpu = atoi(argv[1]);
+		assert(cpu >= 0);
+		selected_cpu = cpu;
+	}
+	
 	task_init();
 	init();
 	pthread_join(executive.thread, NULL);
