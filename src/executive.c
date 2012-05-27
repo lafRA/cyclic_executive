@@ -4,6 +4,11 @@
 	#define _GNU_SOURCE
 #endif
 
+///TEST: da rimuovere!!
+// #ifdef NDEBUG
+// #undef NDEBUG
+// #endif
+
 //file di configurazione esterno (di prova)
 #include "task.h"
 #include <stdio.h>
@@ -105,7 +110,7 @@ void init() {
 	sched_attr.sched_priority = sched_get_priority_min(SCHED_FIFO);
 	pthread_attr_setschedparam(&th_attr, &sched_attr);
 	
-	int i;
+	int i, ret;
 	for(i = 0; i < NUM_P_TASKS; ++i) {
 		//inizializzo il mutex
 		pthread_mutex_init(&tasks[i].mutex, NULL);
@@ -123,7 +128,8 @@ void init() {
 		
 		pthread_attr_setschedparam(&th_attr, &sched_attr);
 		//creo il thread con gli attributi desiderati
-		assert(pthread_create(&tasks[i].thread, &th_attr, p_task_handler, (void*)(tasks+i)) == 0);
+		ret = pthread_create(&tasks[i].thread, &th_attr, p_task_handler, (void*)(tasks+i));
+		assert( ret == 0);
 	}
 	
 	
@@ -136,7 +142,8 @@ void init() {
 	//inizilizzo lo stato del task aperiodico a TASK_COMPLETE
 	ap_task.state = TASK_COMPLETE;
 	//creo il thread con gli attributi desiderati
-	assert(pthread_create(&ap_task.thread, &th_attr, ap_task_handler, (void*)(&ap_task)) == 0);
+	ret = pthread_create(&ap_task.thread, &th_attr, ap_task_handler, (void*)(&ap_task));
+	assert( ret == 0);
 	
 	//*	CREO L'EXECUTIVE
 	//l'executive detiene sempre la priorità massima
@@ -146,7 +153,8 @@ void init() {
 	sched_attr.sched_priority = sched_get_priority_max(SCHED_FIFO);
 	pthread_attr_setschedparam(&th_attr, &sched_attr);
 	executive.stop_request = 1;
-	assert(pthread_create(&executive.thread, &th_attr, executive_handler, NULL) == 0);
+	ret = pthread_create(&executive.thread, &th_attr, executive_handler, NULL);
+	assert( ret == 0);
 }
 
 void destroy() {
