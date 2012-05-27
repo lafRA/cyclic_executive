@@ -61,7 +61,7 @@ void task_init() {
 	SCHEDULE[0][2] = 3;
 	SCHEDULE[0][3] = -1;
 
-	SLACK[0] = 1; /* tutto il frame */
+	SLACK[0] = 1; 
 
 
 	/* frame 1 */
@@ -70,7 +70,7 @@ void task_init() {
 	SCHEDULE[1][1] = 1;
 	SCHEDULE[1][2] = -1;
 
-	SLACK[1] = 0; /* tutto il frame */
+	SLACK[1] = 0; 
 
 
 	/* frame 2 */
@@ -78,7 +78,7 @@ void task_init() {
 	SCHEDULE[2][0] = 0;
 	SCHEDULE[2][1] = -1;
 
-	SLACK[2] = 2; /* tutto il frame */
+	SLACK[2] = 3;
 
 
 	/* frame 3 */
@@ -86,7 +86,7 @@ void task_init() {
 	SCHEDULE[3][0] = 1;
 	SCHEDULE[3][1] = -1;
 
-	SLACK[3] = 3; /* tutto il frame */
+	SLACK[3] = 4;
 }
 
 void task_destroy() {

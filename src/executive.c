@@ -12,6 +12,7 @@
 #include <time.h>
 #include <assert.h>
 #include <errno.h>
+#include <limits.h>
 
 //----------------DEFINES-------------------//
 #define TIME_UNIT_NS 1e7
@@ -61,7 +62,10 @@ typedef struct executive_data_ {
 
 //----------------DATA---------------------//
 static unsigned char ap_request_flag = 0;	//flag di richiesta per il task aperiodico 
-static pthread_mutex_t ap_request_flag_mutex; 
+static pthread_mutex_t ap_flag_mutex; 
+
+static unsigned char ap_multiple_request_flag = 0;	//flag che indica se ci sono delle richieste, che non ho ancora iniziato a soddisfare, che si sovrappongono
+
 static task_data_t ap_task;
 static task_data_t* tasks = 0;				//da inizializzare nella funzione ??, e da distruggere nella funzione ??
 static executive_data_t executive;				//rappresentazione di pthread dell'executive
@@ -123,7 +127,7 @@ void init() {
 	
 	
 	//* CREO IL THREAD ASSOCIATO AL TASK PERIODICO
-	pthread_mutex_init(&ap_request_flag_mutex, NULL);	//inizializzo il mutex associato al flag di richiesta del task aperiodico
+	pthread_mutex_init(&ap_flag_mutex, NULL);	//inizializzo il mutex associato al flag di richiesta del task aperiodico
 	pthread_mutex_init(&ap_task.mutex, NULL);
 	//inizializzo la condition variable
 	pthread_cond_init(&ap_task.execute, NULL);
@@ -191,9 +195,13 @@ void destroy() {
 }
 
 void ap_task_request() {
-	pthread_mutex_lock(&ap_request_flag_mutex);
-		ap_request_flag = 1;
-	pthread_mutex_unlock(&ap_request_flag_mutex);
+	pthread_mutex_lock(&ap_flag_mutex);
+		if(ap_request_flag) {
+			ap_multiple_request_flag = 1;
+		} else {
+			ap_request_flag = 1;
+		}
+	pthread_mutex_unlock(&ap_flag_mutex);
 }
 
 /* Conta i task che devono essere eseguiti in un frame */
@@ -279,7 +287,7 @@ void* p_task_handler(void* arg) {
 	return NULL;
 }
 
-void print_deadline_miss(int index, unsigned long long absolute_frame_num) {
+void print_deadline_miss(int index, unsigned long long absolute_frame_num, unsigned char discarded) {	///@fra ho aggiunto il supporto per differenziare i task in ritardo da quelli completamente scartati
 	struct timespec t;
 	int hyperperiod;
 	
@@ -289,9 +297,9 @@ void print_deadline_miss(int index, unsigned long long absolute_frame_num) {
 	TIME_DIFF(zero_time, t)
 	
 	if(index == -1) {
-		fprintf(stderr, "** DEADLINE MISS (APERIODIC TASK) @ (%ld)s (%.3f)ms from start\n\tframe %lld @ hyperperiod %d.\n", t.tv_sec, t.tv_nsec/1e6, absolute_frame_num % NUM_FRAMES, hyperperiod);
+		fprintf(stderr, "** DEADLINE MISS%s (APERIODIC TASK) @ (%ld)s (%.3f)ms from start\n\tframe %lld @ hyperperiod %d.\n", (discarded)?(":EXECUTION DISCARDED"):(""),t.tv_sec, t.tv_nsec/1e6, absolute_frame_num % NUM_FRAMES, hyperperiod);
 	} else  {
-		fprintf(stderr, "** DEADLINE MISS (PERIODIC TASK %d) @ (%ld)s (%.3f)ms from start\n\tframe %lld @ hyperperiod %d.\n", index, t.tv_sec, t.tv_nsec/1e6, absolute_frame_num % NUM_FRAMES, hyperperiod);
+		fprintf(stderr, "** DEADLINE MISS%s (PERIODIC TASK %d) @ (%ld)s (%.3f)ms from start\n\tframe %lld @ hyperperiod %d.\n", (discarded)?(":EXECUTION DISCARDED"):(""), index+1, t.tv_sec, t.tv_nsec/1e6, absolute_frame_num % NUM_FRAMES, hyperperiod);
 	}
 	
 }
@@ -344,9 +352,6 @@ void* executive_handler(void * arg) {
 	
 	
 // 	clock_gettime(CLOCK_REALTIME, &time);			//numero di secondi e microsecondi da EPOCH..............FIXME clock_gettime()
-	clock_gettime(CLOCK_REALTIME, &zero_time);
-	TRACE_L("executive::inizializzazione", zero_time.tv_sec)
-	TRACE_F("executive::inizializzazione", zero_time.tv_nsec/1e6)
 // 	time.tv_sec = utime.tv_sec;
 // 	time.tv_nsec = utime.tv_usec * 1000;
 // 	timeout_expired = 0;
@@ -358,6 +363,13 @@ void* executive_handler(void * arg) {
 	///			LOOP FOREVER			///
 	
 	while(1) {
+		if(frame_count == 0) {			///@fra per evitare un overflow di frame_count (metti che il sistema vada indefinitivamente per anni e controlli una centrale nucleare..sarebbe un po' fastidioso avere un overflow del numero di frame che blocca tutto il sistema), in fondo al while quando incremento frame_count lo faccio modulo ULLONG_MAX che in teoria è il massimo per un unsigned long long. ok??
+			//resetto un nuovo 'tempo zero'
+			clock_gettime(CLOCK_REALTIME, &zero_time);
+			TRACE_L("executive::inizializzazione", zero_time.tv_sec)
+			TRACE_F("executive::inizializzazione", zero_time.tv_nsec/1e6)
+		}
+		
 		PRINT("========================================================================", "new frame")
 		TRACE_LL("executive::starting loop", frame_count)
 		TRACE_D("executive::starting loop", frame_ind)
@@ -392,12 +404,12 @@ void* executive_handler(void * arg) {
 				assert(tasks[SCHEDULE[frame_prec][i]].state == TASK_PENDING);
 #endif
 				///TEST: provo a scrivere senza acquisire il mutex, tanto l'executive è SEMPRE quello a priorità più elevata
-				print_deadline_miss(i, frame_count);
+				print_deadline_miss(SCHEDULE[frame_prec][i], frame_count, 1);
 				tasks[SCHEDULE[frame_prec][i]].state = TASK_COMPLETE;
 			} else {
 				task_not_completed = (tasks[SCHEDULE[frame_prec][i]].state == TASK_RUNNING);
 				if(task_not_completed) {
-					print_deadline_miss(i, frame_count);
+					print_deadline_miss(SCHEDULE[frame_prec][i], frame_count, 0);
 					pthread_setschedprio(tasks[SCHEDULE[frame_prec][i]].thread, sched_get_priority_min(SCHED_FIFO));
 // 					ind = i;		//indice del task che è stato trovato ancora RUNNING all'inizio del frame
 				}
@@ -414,19 +426,30 @@ void* executive_handler(void * arg) {
 		
 		///			SCHEDULING DEI TASK APERIODICI			///
 		//queste variabili mi servono per fare una copia delle variabili protette da mutex che dovrei testare negli if...mi faccio una copia così libero il mutex subito 
-		unsigned char ap_request_flag_local;
+		unsigned char ap_request_flag_local, ap_multiple_request_flag_local;
 		task_state_t ap_task_state_local;
 		
 		//mi faccio le copie
-		pthread_mutex_lock(&ap_request_flag_mutex);
+		pthread_mutex_lock(&ap_flag_mutex);
 		ap_request_flag_local = ap_request_flag;
-		pthread_mutex_unlock(&ap_request_flag_mutex);
+		ap_multiple_request_flag_local = ap_multiple_request_flag;
+		pthread_mutex_unlock(&ap_flag_mutex);
 		
 		pthread_mutex_lock(&ap_task.mutex);
 		ap_task_state_local = ap_task.state;
 		pthread_mutex_unlock(&ap_task.mutex);
 		
 		//se c'è una richiesta di un task aperiodico e c'è abbastanza slack lo eseguo
+		if(ap_multiple_request_flag) {		///@fra qua gestisco le richieste multiple segnalando l'esecuzione scartata
+			//l'esecuzione di almeno un task aperiodico è stata scartata
+			print_deadline_miss(-1, frame_count, 1);
+			pthread_mutex_lock(&ap_flag_mutex);
+			ap_request_flag_local = ap_request_flag;
+			ap_multiple_request_flag = 0;	//abbasso il flag
+			pthread_mutex_unlock(&ap_flag_mutex);
+			
+		}
+		
 		if((ap_request_flag_local == 1) || (ap_task_state_local == TASK_RUNNING)) {
 			TRACE_D("executive::aperiodic test", (ap_request_flag_local == 1) || (ap_task_state_local == TASK_RUNNING))
 			if((ap_request_flag_local == 1) && (ap_task_state_local == TASK_RUNNING)) {
@@ -436,7 +459,7 @@ void* executive_handler(void * arg) {
 // 				clock_gettime(CLOCK_REALTIME, &t);
 // 				TIME_DIFF(zero_time, t)
 // 				fprintf(stderr, "** DEADLINE MISS (APERIODIC TASK) @ (%d)s (%d)ns from start.\n", t.tv_sec, t.tv_nsec);	///@fra ho aggiunto qualche info temporale
-				print_deadline_miss(-1, frame_count);
+				print_deadline_miss(-1, frame_count, 0);
 			}
 			
 			//slack stealing
@@ -452,9 +475,9 @@ void* executive_handler(void * arg) {
 				//se c'è stata una richiesta e il task aperiodico era in esecuzione devo abbassarla perchè ha generato una deadline miss
 				//se non c'è stata nessuna richiesta e il task era già in esecuzione questa è già bassa
 				if(ap_request_flag_local == 1) {
-					pthread_mutex_lock(&ap_request_flag_mutex);
+					pthread_mutex_lock(&ap_flag_mutex);
 						ap_request_flag = 0;
-					pthread_mutex_unlock(&ap_request_flag_mutex);		///@fra ho aggiunto il reset del flag di richiesta.. secondo te è giusto così??
+					pthread_mutex_unlock(&ap_flag_mutex);		///@fra ho aggiunto il reset del flag di richiesta.. secondo te è giusto così??
 				}
 				
 				//gli alzo la priorità
@@ -579,7 +602,7 @@ void* executive_handler(void * arg) {
 			
 		//non controllo se c'è una richiesta del task aperiodico perchè la mando al frame successivo
 		
-		++frame_count;
+		frame_count = (frame_count + 1) % ULLONG_MAX;
 		frame_ind = frame_count % NUM_FRAMES;
 		
 		
