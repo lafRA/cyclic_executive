@@ -7,20 +7,19 @@
 #include <unistd.h>
 
 /* Lunghezza dell'iperperiodo */
-#define H_PERIOD_ 35
+#define H_PERIOD_ 20
 
 /* Numero di frame */
-#define NUM_FRAMES_ 7
+#define NUM_FRAMES_ 4
 
 /* Numero di task */
-#define NUM_P_TASKS_ 6
+#define NUM_P_TASKS_ 5
 
 void task1_code();
 void task2_code();
 void task3_code();
 void task4_code();
 void task5_code();
-void task6_code();
 
 
 void ap_task_code();
@@ -48,7 +47,6 @@ void task_init() {
 	P_TASKS[2] = task3_code;
 	P_TASKS[3] = task4_code;
 	P_TASKS[4] = task5_code;
-	P_TASKS[5] = task6_code;
 	
 	/* ... */
 
@@ -59,61 +57,38 @@ void task_init() {
 	/* Inizializzazione di SCHEDULE e SLACK (se necessario) */
 
 	/* frame 0 */
-	SCHEDULE[0] = (int *) malloc( sizeof( int ) * 4 );
-	SCHEDULE[0][0] = 2;
-	SCHEDULE[0][1] = 5;
-	SCHEDULE[0][2] = -1;
+	SCHEDULE[0] = (int *) malloc( sizeof( int ) * 2 );
+	SCHEDULE[0][0] = 4;
+	SCHEDULE[0][1] = -1;
 
-	SLACK[0] = 0; /* tutto il frame */
+	SLACK[0] = 0;
 
 
 	/* frame 1 */
 	SCHEDULE[1] = (int *) malloc( sizeof( int ) * 3 );
-	SCHEDULE[1][0] = 5;
+	SCHEDULE[1][0] = 2;
 	SCHEDULE[1][1] = 0;
 	SCHEDULE[1][2] = -1;
 
-	SLACK[1] = 0; /* tutto il frame */
+	SLACK[1] = 0;
 
 
 	/* frame 2 */
-	SCHEDULE[2] = (int *) malloc( sizeof( int ) * 2 );
-	SCHEDULE[2][0] = 2;
+	SCHEDULE[2] = (int *) malloc( sizeof( int ) * 4 );
+	SCHEDULE[2][0] = 0;
 	SCHEDULE[2][1] = 4;
-	SCHEDULE[2][2] = 0;
+	SCHEDULE[2][2] = 1;
 	SCHEDULE[2][3] = -1;
 
-	SLACK[2] = 0; /* tutto il frame */
+	SLACK[2] = 0;
 
 
 	/* frame 3 */
-	SCHEDULE[3] = (int *) malloc( sizeof( int ) * 2 );
-	SCHEDULE[3][0] = 0;
+	SCHEDULE[3] = (int *) malloc( sizeof( int ) * 3 );
+	SCHEDULE[3][0] = 3;
 	SCHEDULE[3][1] = 1;
 	SCHEDULE[3][2] = -1;
 
-	SLACK[3] = 0; /* tutto il frame */
-	
-	/* frame 4 */
-	SCHEDULE[4] = (int *) malloc( sizeof( int ) * 2 );
-	SCHEDULE[4][0] = 1;
-	SCHEDULE[4][1] = -1;
-
-	SLACK[4] = 1; /* tutto il frame */
-	
-	/* frame 5 */
- 	SCHEDULE[5] = (int *) malloc( sizeof( int ) * 2 );
- 	SCHEDULE[5][0] = 1;
- 	SCHEDULE[5][1] = -1;
-	
- 	SLACK[5] = 2; /* tutto il frame */
- 	
- 	/* frame 6 */
- 	SCHEDULE[6] = (int *) malloc( sizeof( int ) * 2 );
- 	SCHEDULE[6][0] = 0;
- 	SCHEDULE[6][1] = -1;
-	
- 	SLACK[6] = 3; /* tutto il frame */
 }
 
 void task_destroy() {
@@ -171,7 +146,7 @@ void task1_code() {
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task1 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
-	busy_wait(10, 15);
+	busy_wait(15, 20);
 	clock_gettime(CLOCK_REALTIME, &t);
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)
@@ -187,9 +162,12 @@ void task2_code() {
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task2 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
-	busy_wait(15, 20);
-	ap_task_request();
-	fprintf(stderr, "\t\ttask2 requested aperiodic task\n", t.tv_sec, t.tv_nsec);
+	busy_wait(5, 10);
+// 	if(count == 1) {
+		ap_task_request();
+		fprintf(stderr, "\t\ttask2 requested aperiodic task\n", t.tv_sec, t.tv_nsec);
+// 	}
+// 	count = (count + 1) % 3;
 	clock_gettime(CLOCK_REALTIME, &t);
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)
@@ -204,7 +182,7 @@ void task3_code() {
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task3 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
-	busy_wait(20, 25);
+	busy_wait(40, 40);
 	clock_gettime(CLOCK_REALTIME, &t);
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)
@@ -219,7 +197,7 @@ void task4_code() {
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task4 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
-	busy_wait(25, 30);
+	busy_wait(5, 10);
 	clock_gettime(CLOCK_REALTIME, &t);
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)
@@ -232,29 +210,13 @@ void task5_code() {
 	struct timespec t, start, end;		//da notare che t viene usato per indicare gli istati di partenza e fine ASSOLUTI, mentre start e end si riferiscono all'effettivo tempo di esecuzione del thread in questione
 	clock_gettime(CLOCK_REALTIME, &t);
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
-	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "----> task5 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
-	busy_wait(30, 35);
+	TIME_DIFF(zero_time, t);
+	busy_wait(50, 70);
 	clock_gettime(CLOCK_REALTIME, &t);
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)
 	TIME_DIFF(start, end)
 	fprintf(stderr, "\t\ttask5 ended @ (%ld)s (%.3f)ms\t||\t actual execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
-}
-
-void task6_code() {
-	/* Custom Code */
-	struct timespec t, start, end;		//da notare che t viene usato per indicare gli istati di partenza e fine ASSOLUTI, mentre start e end si riferiscono all'effettivo tempo di esecuzione del thread in questione
-	clock_gettime(CLOCK_REALTIME, &t);
-	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
-	TIME_DIFF(zero_time, t)
-	fprintf(stderr, "----> task6 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
-	busy_wait(35, 40);
-	clock_gettime(CLOCK_REALTIME, &t);
-	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
-	TIME_DIFF(zero_time, t)
-	TIME_DIFF(start, end)
-	fprintf(stderr, "\t\ttask6 ended @ (%ld)s (%.3f)ms\t||\t actual execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
 }
 
 void ap_task_code() {
@@ -264,7 +226,7 @@ void ap_task_code() {
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> aperiodic task started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
-	busy_wait(30, 40);
+	busy_wait(40, 50);
 	clock_gettime(CLOCK_REALTIME, &t);
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)

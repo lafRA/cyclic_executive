@@ -9,7 +9,7 @@ message(WARNING "** Project path=${PROJECT_SOURCE_DIR}")
 
 #prova opzioni
 #option(DUMMY_OPTION "un opzione inutile di prova per vedere come funziona! Abilita e scopri cosa fa!" ON)
-option(BUILD_TEST "compila i test d'esempio. Se questa opzione è off si aspetta di trovare già i file ok.o notok.o nella directory ${PROJECT_SOURCE_DIR}/test/obj" OFF)
+option(BUILD_TEST "compila i test d'esempio. Se questa opzione è off si aspetta di trovare già i file ok.o notok.o nella directory ${PROJECT_SOURCE_DIR}/test/obj" ON)
 set(SOURCE_PATH "${PROJECT_SOURCE_DIR}/src" CACHE PATH "percorso dei file sorgenti")
 #set_directory_properties(PROPERTIES COMPILE_DEFINITIONS_DEBUG DEBUG=1)
 #set_property(DIRECTORY PROPERTY CMAKE_C_FLAGS_DEBUG "-DDEBUG")
