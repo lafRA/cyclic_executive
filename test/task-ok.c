@@ -75,7 +75,7 @@ void task_init() {
 
 	/* frame 2 */
 	SCHEDULE[2] = (int *) malloc( sizeof( int ) * 2 );
-	SCHEDULE[2][0] = 2;
+	SCHEDULE[2][0] = 0;
 	SCHEDULE[2][1] = -1;
 
 	SLACK[2] = 2; /* tutto il frame */
@@ -99,29 +99,37 @@ void task_destroy() {
 
 /**********************************************************/
 
+// void busy_wait(unsigned int best, unsigned int worst) {
+// 	struct timeval actual;
+// 	struct timeval final;
+// 	
+// 	gettimeofday(&actual, NULL);
+// 	
+// 	unsigned int millisec = best + rand() % (worst - best + 1);
+// 	
+// 	final.tv_sec = actual.tv_sec + (actual.tv_usec + millisec * 1000) / 1000000;
+// 	final.tv_usec = (actual.tv_usec + millisec * 1000) % 1000000;
+// 	
+// 	do {
+// 		gettimeofday(&actual, NULL);
+// 	} while (actual.tv_sec < final.tv_sec || (actual.tv_sec == final.tv_sec && actual.tv_usec < final.tv_usec));
+// }
+
 void busy_wait(unsigned int best, unsigned int worst) {
-	//struct timeval actual;
-	//struct timeval final;
 	struct timespec actual;
 	struct timespec final;
 	
-	//gettimeofday(&actual, NULL);
-	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &actual);	
+// 	gettimeofday(&actual, NULL);
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &actual);
 	
 	unsigned int millisec = best + rand() % (worst - best + 1);
-	
-	//final.tv_sec = actual.tv_sec + (actual.tv_usec + millisec * 1000) / 1000000;
-	//final.tv_usec = (actual.tv_usec + millisec * 1000) % 1000000;
 	
 	final.tv_sec = actual.tv_sec + (actual.tv_nsec + millisec * 1000000) / 1000000000;
 	final.tv_nsec = (actual.tv_nsec + millisec * 1000000) % 1000000000;
 	
-// 	do {
+	do {
 // 		gettimeofday(&actual, NULL);
-// 	} while (actual.tv_sec < final.tv_sec || (actual.tv_sec == final.tv_sec && actual.tv_usec < final.tv_usec));
-	
-		do {
-		clock_gettime(CLOCK_THREAD_CPUTIME_ID, &actual);	
+		clock_gettime(CLOCK_THREAD_CPUTIME_ID, &actual);
 	} while (actual.tv_sec < final.tv_sec || (actual.tv_sec == final.tv_sec && actual.tv_nsec < final.tv_nsec));
 }
 
@@ -131,29 +139,26 @@ void busy_wait(unsigned int best, unsigned int worst) {
 
 void task1_code() {
 	/* Custom Code */
-	struct timespec start, end, t;
-	clock_gettime(CLOCK_REALTIME, &start);
-	t.tv_sec = start.tv_sec;
-	t.tv_nsec = start.tv_nsec;
+	struct timespec t, start, end;		//da notare che t viene usato per indicare gli istati di partenza e fine ASSOLUTI, mentre start e end si riferiscono all'effettivo tempo di esecuzione del thread in questione
+	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task1 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 	busy_wait(15, 20);
-	clock_gettime(CLOCK_REALTIME, &end);
-	t.tv_sec = end.tv_sec;
-	t.tv_nsec = end.tv_nsec;
+	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)
 	TIME_DIFF(start, end)
-	fprintf(stderr, "\t\ttask1 ended @ (%ld)s (%.3f)ms\t||\t total execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
+	fprintf(stderr, "\t\ttask1 ended @ (%ld)s (%.3f)ms\t||\t actual execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
 }
 
 void task2_code() {
 	/* Custom Code */
 	static unsigned int count = 0;
 	
-	struct timespec start, end, t;
-	clock_gettime(CLOCK_REALTIME, &start);
-	t.tv_sec = start.tv_sec;
-	t.tv_nsec = start.tv_nsec;
+	struct timespec t, start, end;		//da notare che t viene usato per indicare gli istati di partenza e fine ASSOLUTI, mentre start e end si riferiscono all'effettivo tempo di esecuzione del thread in questione
+	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task2 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 	busy_wait(5, 10);
@@ -162,61 +167,54 @@ void task2_code() {
 		fprintf(stderr, "\t\ttask2 requested aperiodic task\n", t.tv_sec, t.tv_nsec);
 	}
 	count = (count + 1) % 3;
-	clock_gettime(CLOCK_REALTIME, &end);
-	t.tv_sec = end.tv_sec;
-	t.tv_nsec = end.tv_nsec;
+	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)
 	TIME_DIFF(start, end)
-	fprintf(stderr, "\t\ttask2 ended @ (%ld)s (%.3f)ms\t||\t total execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
+	fprintf(stderr, "\t\ttask2 ended @ (%ld)s (%.3f)ms\t||\t actual execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
 }
 
 void task3_code() {
 	/* Custom Code */
-	struct timespec start, end, t;
-	clock_gettime(CLOCK_REALTIME, &start);
-	t.tv_sec = start.tv_sec;
-	t.tv_nsec = start.tv_nsec;
+	struct timespec t, start, end;		//da notare che t viene usato per indicare gli istati di partenza e fine ASSOLUTI, mentre start e end si riferiscono all'effettivo tempo di esecuzione del thread in questione
+	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task3 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 	busy_wait(20, 40);
-	clock_gettime(CLOCK_REALTIME, &end);
-	t.tv_sec = end.tv_sec;
-	t.tv_nsec = end.tv_nsec;
+	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)
 	TIME_DIFF(start, end)
-	fprintf(stderr, "\t\ttask3 ended @ (%ld)s (%.3f)ms\t||\t total execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
+	fprintf(stderr, "\t\ttask3 ended @ (%ld)s (%.3f)ms\t||\t actual execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
 }
 
 void task4_code() {
 	/* Custom Code */
-	struct timespec start, end, t;
-	clock_gettime(CLOCK_REALTIME, &start);
-	t.tv_sec = start.tv_sec;
-	t.tv_nsec = start.tv_nsec;
+	struct timespec t, start, end;		//da notare che t viene usato per indicare gli istati di partenza e fine ASSOLUTI, mentre start e end si riferiscono all'effettivo tempo di esecuzione del thread in questione
+	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task4 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 	busy_wait(5, 10);
-	clock_gettime(CLOCK_REALTIME, &end);
-	t.tv_sec = end.tv_sec;
-	t.tv_nsec = end.tv_nsec;
+	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)
 	TIME_DIFF(start, end)
-	fprintf(stderr, "\t\ttask4 ended @ (%ld)s (%.3f)ms\t||\t total execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
+	fprintf(stderr, "\t\ttask4 ended @ (%ld)s (%.3f)ms\t||\t actual execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
 }
 
 void ap_task_code() {
 	/* Custom Code */
-	struct timespec start, end, t;
-	clock_gettime(CLOCK_REALTIME, &start);
-	t.tv_sec = start.tv_sec;
-	t.tv_nsec = start.tv_nsec;
+	struct timespec t, start, end;		//da notare che t viene usato per indicare gli istati di partenza e fine ASSOLUTI, mentre start e end si riferiscono all'effettivo tempo di esecuzione del thread in questione
+	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> aperiodic task started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
 	busy_wait(40, 50);
-	clock_gettime(CLOCK_REALTIME, &end);
-	t.tv_sec = end.tv_sec;
-	t.tv_nsec = end.tv_nsec;
+	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)
 	TIME_DIFF(start, end)
-	fprintf(stderr, "\t\taperiodic task ended @ (%ld)s (%.3f)ms\t||\t total execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
+	fprintf(stderr, "\t\taperiodic task ended @ (%ld)s (%.3f)ms\t||\t actual execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
 }

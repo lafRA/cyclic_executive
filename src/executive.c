@@ -1,3 +1,5 @@
+#define MULTIPROC
+
 /* traccia dell'executive (pseudocodice) */
 #ifdef MULTIPROC
 	//sistema multiprocessore
@@ -231,17 +233,16 @@ void* ap_task_handler(void* arg) {
 		PRINT("ap_task_handler", "task code complete")
 		
 		
-		pthread_mutex_lock(&executive.mutex);	//acquisisco il mutex dell'executive perchè non voglio essere interrotto tra l'operazione di aggiornamento stato e quella di signal all'executive.
-			//aggiornamento dello stato e signal all'executive eseguite in modo atomico rispetto all'executive
-			pthread_mutex_lock(&data->mutex);
-			PRINT("p_task_handler", "setting state to TASK_COMPLETE")
-			data->state = TASK_COMPLETE;				//imposto il mio stato a COMPLETE
-			pthread_mutex_unlock(&data->mutex);
-			
-			//se fossi interrotto qui l'executive mi vedrebbe come completato, ma, alla prossima volta che viene schedulato il task aperiodico, invece di iniziare una nuova esecuzione l'unica cosa che fa è segnalare l'executive..andrebbe quindi persa un'intera esecuzione i di task aperiodico.
-			//segnalo all'executive che ho completato
-			pthread_cond_signal(&executive.execute);
-		pthread_mutex_unlock(&executive.mutex);
+		//non voglio essere interrotto tra l'operazione di aggiornamento stato e quella di signal all'executive.
+		//aggiornamento dello stato e signal all'executive eseguite in modo atomico rispetto all'executive
+		pthread_mutex_lock(&data->mutex);
+		PRINT("p_task_handler", "setting state to TASK_COMPLETE")
+		data->state = TASK_COMPLETE;				//imposto il mio stato a COMPLETE
+		//se fossi interrotto qui l'executive mi vedrebbe come completato, ma, alla prossima volta che viene schedulato il task aperiodico, invece di iniziare una nuova esecuzione l'unica cosa che fa è segnalare l'executive..andrebbe quindi persa un'intera esecuzione i di task aperiodico.
+		//questo è però evitato perchè l'executive si mette in attesa sul mutex del tesk_aperiodico, quindi non può risvegliarsi se il mutex non è libero
+		//segnalo all'executive che ho completato
+		pthread_cond_signal(&executive.execute);
+		pthread_mutex_unlock(&data->mutex);
 	}
 	
 	return NULL;
@@ -292,7 +293,7 @@ void print_deadline_miss(int index, unsigned long long absolute_frame_num) {
 	if(index == -1) {
 		fprintf(stderr, "** DEADLINE MISS (APERIODIC TASK) @ (%ld)s (%.3f)ms from start\n\tframe %lld @ hyperperiod %d.\n", t.tv_sec, t.tv_nsec/1e6, absolute_frame_num % NUM_FRAMES, hyperperiod);
 	} else  {
-		fprintf(stderr, "** DEADLINE MISS (PERIODIC TASK %d) @ (%ld)s (%.3)ms from start\n\tframe %lld @ hyperperiod %d.\n", index, t.tv_sec, t.tv_nsec/1e6, absolute_frame_num % NUM_FRAMES, hyperperiod);
+		fprintf(stderr, "** DEADLINE MISS (PERIODIC TASK %d) @ (%ld)s (%.3f)ms from start\n\tframe %lld @ hyperperiod %d.\n", index, t.tv_sec, t.tv_nsec/1e6, absolute_frame_num % NUM_FRAMES, hyperperiod);
 	}
 	
 }
@@ -363,7 +364,7 @@ void* executive_handler(void * arg) {
 		TRACE_LL("executive::starting loop", frame_count)
 		TRACE_D("executive::starting loop", frame_ind)
 		
-	#ifndef	NDEBUG
+#ifndef	NDEBUG
 		{
 			clock_gettime(CLOCK_REALTIME, &time);
 			TIME_DIFF(zero_time, time)
@@ -393,6 +394,7 @@ void* executive_handler(void * arg) {
 		TRACE_L("executive::serving periodic tasks", time.tv_sec)
 		TRACE_F("executive::serving periodic tasks", time.tv_nsec/1e6)
 #endif
+		
 
 		PRINT("executive","checking for late jobs")
 		
@@ -404,9 +406,9 @@ void* executive_handler(void * arg) {
 			pthread_mutex_lock(&tasks[SCHEDULE[frame_prec][i]].mutex);		//leggo e modifico lo stato dei thread
 			if(task_not_completed) {
 				/// @fra NOTE: Cmake, quando non in modalità debug, definisce automaticamente NDEBUG
-#ifndef	NDEBUG
-				assert(tasks[SCHEDULE[frame_prec][i]].state == TASK_PENDING);
-#endif
+//#ifndef	NDEBUG
+//				assert(tasks[SCHEDULE[frame_prec][i]].state == TASK_PENDING);
+//#endif
 				///TEST: provo a scrivere senza acquisire il mutex, tanto l'executive è SEMPRE quello a priorità più elevata
 				print_deadline_miss(i, frame_count);
 				tasks[SCHEDULE[frame_prec][i]].state = TASK_COMPLETE;
@@ -458,6 +460,12 @@ void* executive_handler(void * arg) {
 			//slack stealing
 			if(SLACK[frame_ind] > 0) {
 				PRINT("executive", "slack stealing")
+#ifndef	NDEBUG
+				clock_gettime(CLOCK_REALTIME, &time);
+				TIME_DIFF(zero_time, time)
+				TRACE_L("executive::serving aperiodic task", time.tv_sec)
+				TRACE_F("executive::serving aperiodic task", time.tv_nsec/1e6)
+#endif
 				//se c'è stata una richiesta e nessun task aperiodico è in esecuzione devo abbassarla perchè inizio a servirla)
 				//se c'è stata una richiesta e il task aperiodico era in esecuzione devo abbassarla perchè ha generato una deadline miss
 				//se non c'è stata nessuna richiesta e il task era già in esecuzione questa è già bassa
