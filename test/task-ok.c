@@ -115,6 +115,11 @@ void task_destroy() {
 // 	} while (actual.tv_sec < final.tv_sec || (actual.tv_sec == final.tv_sec && actual.tv_usec < final.tv_usec));
 // }
 
+/**
+ * La vecchia versione del busy-wait non funziona nel caso in cui il task subisca preemption (perchè il tempo continua a scorrere).
+ * Per modellare l'effettiva esecuzione di un dato intervallo temporale è necessario usare il clock CLOCK_THREAD_CPUTIME_ID.
+ * Inoltre per rendere la simulazione più realistica il tempo d'attesa è specificato in termini di tempo minimo e massimo (e viene distribuito uniformemente tra i due per semplicità)
+ */
 void busy_wait(unsigned int best, unsigned int worst) {
 	struct timespec actual;
 	struct timespec final;

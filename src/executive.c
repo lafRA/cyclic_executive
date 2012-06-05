@@ -1,3 +1,14 @@
+/**
+ * NOTE: Come previsto da CMake e da GNU quando il codice deve essere 
+ * compilato senza informazioni di debug bisogna definire NDEBUG 
+ * (cosa fatta automaticamente nel caso si generi il makefile con cmake).
+ * Anche la funzione 'assert', quando compilato con NDEBUG, viene sostituita con una
+ * riga vuota, quindi non influisce sul codice (per questo motivo i controlli sono stati replicati con if(...)exit(...)).
+ * Nel caso non venga usato CMake definirlo manualmente scommentando la seguente riga.
+ */
+
+//#define NDEBUG
+
 #define MULTIPROC
 
 #ifdef MULTIPROC
@@ -16,7 +27,9 @@
 
 ///----------------DEFINES-------------------//
 
+/* Definisco l'unità di tempo (10ms) in nanosecondi */
 #define TIME_UNIT_NS 1e7
+/* Nel caso sia in modalità debug utilizzo queste comode funzioni per tracciare il valore delle variabili*/
 #ifndef	NDEBUG
 	#define	PRINT(x, m) fprintf(stderr, ">>\t%s --> %s\n", (x), (m));
 	#define TRACE_D(x, m) fprintf(stderr, ">>\t%s --> "#m" = %d\n", (x), (m));
@@ -26,6 +39,7 @@
 	#define TRACE_C(x, m) fprintf(stderr, ">>\t%s --> "#m" = %c\n", (x), (m));
 	#define TRACE_S(x, m) fprintf(stderr, ">>\t%s --> "#m" = %s\n", (x), (m));
 #else
+	/*In caso contrario queste MACRO vengono semplicemente sostituite con righe vuote*/
 	#define PRINT(x, m)
 	#define TRACE_D(x, m)
 	#define TRACE_L(x, m)
@@ -119,7 +133,7 @@ void init() {
 		tasks[i].thread_id = i;
 		tasks[i].init = 0;
 		//inizilizzo lo stato del task a TASK_COMPLETE
-		///NOTE: in questo caso posso accedere allo stato senza il mutex perchè, a questo punto di inizializzazione, non possono esistere altri processi che cercano di accedervi.
+		//in questo caso posso accedere allo stato senza il mutex perchè, a questo punto di inizializzazione, non possono esistere altri processi che cercano di accedervi.
 		tasks[i].state = TASK_COMPLETE;
 		
 		//la priorità crescente garantisce che tutti vengano effettivamente inizializzati
@@ -128,7 +142,10 @@ void init() {
 		pthread_attr_setschedparam(&th_attr, &sched_attr);
 		//creo il thread con gli attributi desiderati
 		ret = pthread_create(&tasks[i].thread, &th_attr, p_task_handler, (void*)(tasks+i));
-		assert( ret == 0);
+		assert( ret == 0);		//valida solo in modalità debug!
+		if(ret != 0) {
+			exit(1);
+		}
 	}
 	
 	
@@ -142,7 +159,10 @@ void init() {
 	ap_task.state = TASK_COMPLETE;
 	//creo il thread con gli attributi desiderati
 	ret = pthread_create(&ap_task.thread, &th_attr, ap_task_handler, (void*)(&ap_task));
-	assert( ret == 0);
+	assert( ret == 0);		//valido solo in modalità debug!
+	if(ret != 0) {
+		exit(1);
+	}
 	
 	//*	CREO L'EXECUTIVE
 	//l'executive detiene sempre la priorità massima
@@ -153,11 +173,14 @@ void init() {
 	pthread_attr_setschedparam(&th_attr, &sched_attr);
 	executive.stop_request = 1;
 	ret = pthread_create(&executive.thread, &th_attr, executive_handler, NULL);
-	assert( ret == 0);
+	assert( ret == 0);		//valido solo in modalità debug
+	if(ret != 0) {
+		exit(1);
+	}
 }
 
 void destroy() {
-	///NOTE: utilizzo il valore di tasks per capire se le cose sono già inizilizzate: tasks == 0 |==> niente è ancora stato inizializzato
+	//utilizzo il valore di tasks per capire se le cose sono già inizilizzate: tasks == 0 |==> niente è ancora stato inizializzato
 	if(tasks == 0) {
 		//non c'è niente da distruggere dato che non c'è nulla di inizializzato
 		return;
@@ -198,6 +221,8 @@ void destroy() {
 void ap_task_request() {
 	pthread_mutex_lock(&ap_flag_mutex);
 		if(ap_request_flag) {
+			//segnalo l'arrivo multiplo di richieste d'esecuzione per il task aperiodico
+			//ovvero quando una nuova richiesta arriva prima che abbia iniziato a servire la precedente 
 			ap_multiple_request_flag = 1;
 		} else {
 			ap_request_flag = 1;
@@ -288,7 +313,7 @@ void* p_task_handler(void* arg) {
 	return NULL;
 }
 
-void print_deadline_miss(int index, unsigned long long absolute_frame_num, unsigned char discarded) {	///@fra ho aggiunto il supporto per differenziare i task in ritardo da quelli completamente scartati
+void print_deadline_miss(int index, unsigned long long absolute_frame_num, unsigned char discarded) {
 	struct timespec t;
 	int hyperperiod;
 	
@@ -297,9 +322,9 @@ void print_deadline_miss(int index, unsigned long long absolute_frame_num, unsig
 	clock_gettime(CLOCK_REALTIME, &t);
 	TIME_DIFF(zero_time, t)
 	
-	if(index == -1) {
+	if(index == -1) {	//deadline miss di un task aperiodico
 		fprintf(stderr, "** DEADLINE MISS%s (APERIODIC TASK) @ (%ld)s (%.3f)ms from start\n\tframe %lld @ hyperperiod %d.\n", (discarded)?(":EXECUTION DISCARDED"):(""),t.tv_sec, t.tv_nsec/1e6, absolute_frame_num % NUM_FRAMES, hyperperiod);
-	} else  {
+	} else  {		//deadline miss di un task periodico
 		fprintf(stderr, "** DEADLINE MISS%s (PERIODIC TASK %d) @ (%ld)s (%.3f)ms from start\n\tframe %lld @ hyperperiod %d.\n", (discarded)?(":EXECUTION DISCARDED"):(""), index+1, t.tv_sec, t.tv_nsec/1e6, absolute_frame_num % NUM_FRAMES, hyperperiod);
 	}
 	
@@ -311,6 +336,9 @@ void* executive_handler(void * arg) {
 	///				PROLOGO				///
 	//controllo che il numero di frame sia corretto, se il numero di frame non è un divisore della linghezza dell'iperperiodo allora la dimensione del frame è sbagliata ed è inutile continuare
 	assert((H_PERIOD % NUM_FRAMES) == 0);
+	if((H_PERIOD % NUM_FRAMES) != 0) {
+		exit(1);
+	}
 	
 	///				DATI				///
 	
@@ -318,7 +346,7 @@ void* executive_handler(void * arg) {
 	unsigned int threshold;					//soglia di sicurezza per lo slack stealing
 	int frame_dim;							//dimensione del frame
 	unsigned long long frame_count;		//contatore incrementale
-	int i;									//indice al task corrente
+	int i;									//generico
 	
 	struct timespec time;
 	
@@ -334,11 +362,12 @@ void* executive_handler(void * arg) {
 	frame_dim = H_PERIOD / NUM_FRAMES;
 	frame_ind = 0;
 	frame_count = 0;
-	threshold = 1000000;
+	threshold = 1000000;	//quando mi addormento per lo slack stealing mi tengo 1ms di margine
 	
 	TRACE_D("executive::inizializzazione", frame_dim)
 	
 	
+	//riabbasso tutte le priorità che avevo inizialmente alzato per garantire l'inizializzazione
 	for(i = 0; i < NUM_P_TASKS; ++i) {
 		pthread_setschedprio(tasks[i].thread, sched_get_priority_min(SCHED_FIFO));
 	}
@@ -355,7 +384,6 @@ void* executive_handler(void * arg) {
 		
 		fprintf(stderr, "================================================================================ --> frame (%d) @ hyperperiod (%lld)\n", frame_ind, frame_count / NUM_FRAMES);
 		
-		PRINT("========================================================================", "new frame")
 		TRACE_LL("executive::starting loop", frame_count)
 		TRACE_D("executive::starting loop", frame_ind)
 		
@@ -369,15 +397,6 @@ void* executive_handler(void * arg) {
 #endif	//NDEBUG
 		
 		///			VERIFICA CHE I JOB ABBIANO TERMINATO			///
-		
-#ifndef	NDEBUG
-		clock_gettime(CLOCK_REALTIME, &time);
-		TIME_DIFF(zero_time, time)
-		TRACE_L("executive::serving periodic tasks", time.tv_sec)
-		TRACE_F("executive::serving periodic tasks", time.tv_nsec/1e6)
-#endif
-		
-
 		PRINT("executive","checking for late jobs")
 		
 		ind = 0;
@@ -393,14 +412,13 @@ void* executive_handler(void * arg) {
 				task_not_completed = (tasks[SCHEDULE[frame_prec][i]].state == TASK_RUNNING);
 				if(task_not_completed) {
 					print_deadline_miss(SCHEDULE[frame_prec][i], frame_count, 0);
-					pthread_setschedprio(tasks[SCHEDULE[frame_prec][i]].thread, sched_get_priority_min(SCHED_FIFO));
 				}
 			}
 			
 			pthread_mutex_unlock(&tasks[SCHEDULE[frame_prec][i]].mutex);
 			
 			//abbasso la priorità di tutti i thread
-			pthread_setschedprio(tasks[i].thread, sched_get_priority_min(SCHED_FIFO));
+			pthread_setschedprio(tasks[SCHEDULE[frame_prec][i]].thread, sched_get_priority_min(SCHED_FIFO));
 		}
 
 		
@@ -410,7 +428,7 @@ void* executive_handler(void * arg) {
 		unsigned char ap_request_flag_local, ap_multiple_request_flag_local;
 		task_state_t ap_task_state_local;
 		
-		//faccio le copie
+		//faccio le copie locali
 		pthread_mutex_lock(&ap_flag_mutex);
 		ap_request_flag_local = ap_request_flag;
 		ap_multiple_request_flag_local = ap_multiple_request_flag;
@@ -425,7 +443,6 @@ void* executive_handler(void * arg) {
 			//l'esecuzione di almeno un task aperiodico è stata scartata
 			print_deadline_miss(-1, frame_count, 1);
 			pthread_mutex_lock(&ap_flag_mutex);
-			ap_request_flag_local = ap_request_flag;
 			ap_multiple_request_flag = 0;
 			pthread_mutex_unlock(&ap_flag_mutex);
 			
@@ -488,12 +505,15 @@ void* executive_handler(void * arg) {
 				pthread_mutex_unlock(&ap_task.mutex);
 				pthread_cond_signal(&ap_task.execute);
 				
+// 				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
+// 					//se scade il timeout abbasso la priorità al task aperiodico così viene eseguito dopo tutti i task periodici, se c'è tempo
+// 					
+// 					pthread_setschedprio(ap_task.thread, sched_get_priority_min(SCHED_FIFO) + 1);	//lascio libero l'ultimo livello di priorità e lo assegno ai task che vengono trovati ad eseguire in ritardo	
+// 				}
+				///TEST:
 				pthread_mutex_lock(&ap_task.mutex);
-				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
-					//se scade il timeout abbasso la priorità al task aperiodico così viene eseguito dopo tutti i task periodici, se c'è tempo
-					
-					pthread_setschedprio(ap_task.thread, sched_get_priority_min(SCHED_FIFO) + 1);
-				} 
+				pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time);	//attendo per il completamento o lo scadere dello slack time
+				pthread_setschedprio(ap_task.thread, sched_get_priority_min(SCHED_FIFO) + 1);	//lascio libero l'ultimo livello di priorità e lo assegno ai task che vengono trovati ad eseguire in ritardo	
 				pthread_mutex_unlock(&ap_task.mutex);
 			}
 		}
@@ -520,7 +540,7 @@ void* executive_handler(void * arg) {
 			if(tasks[SCHEDULE[frame_ind][i]].state == TASK_COMPLETE) {
 				tasks[SCHEDULE[frame_ind][i]].state = TASK_PENDING;
 				//task che vanno schedulati normalmente
-				pthread_setschedprio(tasks[SCHEDULE[frame_ind][i]].thread, (sched_get_priority_max(SCHED_FIFO) - 1 - i + rit));	//TODO modificare negli aperiodici
+				pthread_setschedprio(tasks[SCHEDULE[frame_ind][i]].thread, (sched_get_priority_max(SCHED_FIFO) - 1 - i + rit));
 				TRACE_D("executive::scheduling normal periodic tasks", (sched_get_priority_max(SCHED_FIFO) - 1 - i + rit))
 			} else {
 				//task che risultano in ritardo
@@ -538,7 +558,7 @@ void* executive_handler(void * arg) {
 		//non controllo se c'è una richiesta del task aperiodico perchè la mando al frame successivo
 		
 		frame_count = (frame_count + 1) % ULLONG_MAX;		//per evitare un overflow di frame_count (ipotizziamo che l'esecuzione possa andare avanti indefinitivamente, anche per anni)
-		frame_ind = frame_count % NUM_FRAMES;
+		frame_ind = frame_count % NUM_FRAMES;		///TODO: controllo sta bazza dell'overflow
 		
 		
 		time.tv_sec = zero_time.tv_sec;
