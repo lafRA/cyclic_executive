@@ -353,8 +353,6 @@ void* executive_handler(void * arg) {
 	struct sched_param th_param;			//per modificare la priorità dei thread
 	
 	unsigned char task_not_completed;		//servirà per controllare se i task del frame precedente hanno terminato
-	int new_num_elements;					//servirà per costruire una nuova schedule
-	int ind;								//servirà per costruire la nuova schedule
 	
 	///			INIZIALIZZAZIONE		///
 	
@@ -397,7 +395,6 @@ void* executive_handler(void * arg) {
 		///			VERIFICA CHE I JOB ABBIANO TERMINATO			///
 		PRINT("executive","checking for late jobs")
 		
-		ind = 0;
 		int frame_prec = (frame_ind + NUM_FRAMES - 1) % NUM_FRAMES;	//indice del frame precedente
 		task_not_completed = 0;
 		int dim = count_task(SCHEDULE[frame_prec]);
@@ -437,7 +434,7 @@ void* executive_handler(void * arg) {
 		pthread_mutex_unlock(&ap_task.mutex);
 		
 		//se c'è una richiesta di un task aperiodico e c'è abbastanza slack lo eseguo
-		if(ap_multiple_request_flag) {		//gestisco le richieste multiple segnalando l'esecuzione scartata
+		if(ap_multiple_request_flag_local) {		//gestisco le richieste multiple segnalando l'esecuzione scartata
 			//l'esecuzione di almeno un task aperiodico è stata scartata
 			print_deadline_miss(-1, frame_count, 1);
 			pthread_mutex_lock(&ap_flag_mutex);
@@ -596,10 +593,10 @@ void* executive_handler(void * arg) {
 int main(int argc, char** argv) {
 	if(argc == 2) {					//possibilità di specificare la cpu a cui assegnare la schedule, utile per eseguire due istanze contemporaneamente (di default è la 0)
 		int cpu = atoi(argv[1]);
+		assert(cpu >= 0);
 		if(cpu < 0) {
 			exit(0);
 		}
-		assert(cpu >= 0);
 		selected_cpu = cpu;
 	}
 	
@@ -608,4 +605,7 @@ int main(int argc, char** argv) {
 	pthread_join(executive.thread, NULL);
 	destroy();
 	task_destroy();
+	
+	
+	return 0;
 }
