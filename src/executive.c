@@ -372,16 +372,14 @@ void* executive_handler(void * arg) {
 		pthread_setschedprio(tasks[i].thread, sched_get_priority_min(SCHED_FIFO));
 	}
 	
+	//resetto un nuovo 'tempo zero'
+	clock_gettime(CLOCK_REALTIME, &zero_time);
+	TRACE_L("executive::inizializzazione", zero_time.tv_sec)
+	TRACE_F("executive::inizializzazione", zero_time.tv_nsec/1e6)
+	
 	///			LOOP FOREVER			///
 	
-	while(1) {
-		if(frame_count == 0) {
-			//resetto un nuovo 'tempo zero'
-			clock_gettime(CLOCK_REALTIME, &zero_time);
-			TRACE_L("executive::inizializzazione", zero_time.tv_sec)
-			TRACE_F("executive::inizializzazione", zero_time.tv_nsec/1e6)
-		}
-		
+	while(1) {		
 		fprintf(stderr, "================================================================================ --> frame (%d) @ hyperperiod (%lld)\n", frame_ind, frame_count / NUM_FRAMES);
 		
 		TRACE_LL("executive::starting loop", frame_count)
@@ -557,8 +555,8 @@ void* executive_handler(void * arg) {
 			
 		//non controllo se c'è una richiesta del task aperiodico perchè la mando al frame successivo
 		
-		frame_count = (frame_count + 1) % ULLONG_MAX;		//per evitare un overflow di frame_count (ipotizziamo che l'esecuzione possa andare avanti indefinitivamente, anche per anni)
-		frame_ind = frame_count % NUM_FRAMES;		///TODO: controllo sta bazza dell'overflow
+		++frame_count; // = (frame_count + 1) % ULLONG_MAX;		//per evitare un overflow di frame_count (ipotizziamo che l'esecuzione possa andare avanti indefinitivamente, anche per anni)
+		frame_ind = frame_count % NUM_FRAMES;
 		
 		
 		time.tv_sec = zero_time.tv_sec;
