@@ -267,14 +267,14 @@ void* ap_task_handler(void* arg) {
 		
 		//non voglio essere interrotto tra l'operazione di aggiornamento stato e quella di signal all'executive.
 		//aggiornamento dello stato e signal all'executive eseguite in modo atomico rispetto all'executive
-		pthread_mutex_lock(&data->mutex);
+		pthread_mutex_lock(&executive.mutex);
 		PRINT("p_task_handler", "setting state to TASK_COMPLETE")
 		data->state = TASK_COMPLETE;				//imposto il mio stato a COMPLETE
 		//se fossi interrotto qui l'executive mi vedrebbe come completato, ma, alla prossima volta che viene schedulato il task aperiodico, invece di iniziare una nuova esecuzione l'unica cosa che fa è segnalare l'executive..andrebbe quindi persa un'intera esecuzione i di task aperiodico.
 		//questo è però evitato perchè l'executive si mette in attesa sul mutex del tesk_aperiodico, quindi non può risvegliarsi se il mutex non è libero
 		//segnalo all'executive che ho completato
 		pthread_cond_signal(&executive.execute);
-		pthread_mutex_unlock(&data->mutex);
+		pthread_mutex_unlock(&executive.mutex);
 	}
 	
 	return NULL;
@@ -500,10 +500,10 @@ void* executive_handler(void * arg) {
 				pthread_mutex_unlock(&ap_task.mutex);
 				pthread_cond_signal(&ap_task.execute);
 				
-				pthread_mutex_lock(&ap_task.mutex);
-				pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time);	//attendo per il completamento o lo scadere dello slack time
+				pthread_mutex_lock(&executive.mutex);
+				pthread_cond_timedwait(&executive.execute, &executive.mutex, &time);	//attendo per il completamento o lo scadere dello slack time
 				pthread_setschedprio(ap_task.thread, sched_get_priority_min(SCHED_FIFO) + 1);	//lascio libero l'ultimo livello di priorità e lo assegno ai task che vengono trovati ad eseguire in ritardo	
-				pthread_mutex_unlock(&ap_task.mutex);
+				pthread_mutex_unlock(&executive.mutex);
 			}
 		}
 			
@@ -546,7 +546,7 @@ void* executive_handler(void * arg) {
 			
 		//non controllo se c'è una richiesta del task aperiodico perchè la mando al frame successivo
 		
-		++frame_count; // = (frame_count + 1) % ULLONG_MAX;		//per evitare un overflow di frame_count (ipotizziamo che l'esecuzione possa andare avanti indefinitivamente, anche per anni)
+		++frame_count;
 		frame_ind = frame_count % NUM_FRAMES;
 		
 		
@@ -575,8 +575,10 @@ void* executive_handler(void * arg) {
 		//mi metto in attesa che finisca il tempo del frame:
 		pthread_mutex_lock(&executive.mutex);
 		while(pthread_cond_timedwait(&executive.execute, &executive.mutex, &time) != ETIMEDOUT) {
-			#ifndef	NDEBUG
-		{
+#ifndef	NDEBUG
+		{	//se i task non eseguono per il loro WCET o comunque c'è tempo prima del frame successivo il job aperiodico viene eseguito in background
+		//quando questo accade c'è la possibilità che termini la sua esecuzione e segnali l'executive, risvegliandolo
+		//quindi controllo di essermi svegliato per TIMEOUT
 			struct timespec time_rel;
 			clock_gettime(CLOCK_REALTIME, &time_rel);
 			TIME_DIFF(zero_time, time_rel)

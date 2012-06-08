@@ -169,7 +169,7 @@ void task2_code() {
 	busy_wait(5, 10);
 	if(count == 1) {
 		ap_task_request();
-		fprintf(stderr, "\t\ttask2 requested aperiodic task\n", t.tv_sec, t.tv_nsec);
+		fprintf(stderr, "\t\ttask2 requested aperiodic task\n");
 	}
 	count = (count + 1) % 3;
 	clock_gettime(CLOCK_REALTIME, &t);
