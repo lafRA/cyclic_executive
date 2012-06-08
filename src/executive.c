@@ -503,12 +503,6 @@ void* executive_handler(void * arg) {
 				pthread_mutex_unlock(&ap_task.mutex);
 				pthread_cond_signal(&ap_task.execute);
 				
-// 				if(pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time) == ETIMEDOUT) {
-// 					//se scade il timeout abbasso la priorità al task aperiodico così viene eseguito dopo tutti i task periodici, se c'è tempo
-// 					
-// 					pthread_setschedprio(ap_task.thread, sched_get_priority_min(SCHED_FIFO) + 1);	//lascio libero l'ultimo livello di priorità e lo assegno ai task che vengono trovati ad eseguire in ritardo	
-// 				}
-				///TEST:
 				pthread_mutex_lock(&ap_task.mutex);
 				pthread_cond_timedwait(&ap_task.execute, &ap_task.mutex, &time);	//attendo per il completamento o lo scadere dello slack time
 				pthread_setschedprio(ap_task.thread, sched_get_priority_min(SCHED_FIFO) + 1);	//lascio libero l'ultimo livello di priorità e lo assegno ai task che vengono trovati ad eseguire in ritardo	
@@ -602,6 +596,9 @@ void* executive_handler(void * arg) {
 int main(int argc, char** argv) {
 	if(argc == 2) {					//possibilità di specificare la cpu a cui assegnare la schedule, utile per eseguire due istanze contemporaneamente (di default è la 0)
 		int cpu = atoi(argv[1]);
+		if(cpu < 0) {
+			exit(0);
+		}
 		assert(cpu >= 0);
 		selected_cpu = cpu;
 	}
