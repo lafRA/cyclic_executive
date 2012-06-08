@@ -83,7 +83,7 @@ void task_init() {
 	/* frame 2 */
 	SCHEDULE[2] = (int *) malloc( sizeof( int ) * 3 );
 	SCHEDULE[2][0] = 1;				//richiesta per task aperiodico
-	SCHEDULE[2][1] = 5;
+	SCHEDULE[2][1] = 2;
 	SCHEDULE[2][2] = -1;
 
 	SLACK[2] = 0;
