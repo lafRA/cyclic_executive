@@ -59,7 +59,7 @@ void task_init() {
 	/* Inizializzazione di SCHEDULE e SLACK (se necessario) */
 
 	/* frame 0 */
-	SCHEDULE[0] = (int *) malloc( sizeof( int ) * 2 );
+	SCHEDULE[0] = (int *) malloc( sizeof( int ) * 4 );
 	SCHEDULE[0][0] = 0;
 	SCHEDULE[0][1] = 1;				//richiesta per task aperiodico
  	SCHEDULE[0][2] = 4;
@@ -78,7 +78,7 @@ void task_init() {
 
 
 	/* frame 2 */
-	SCHEDULE[2] = (int *) malloc( sizeof( int ) * 4 );
+	SCHEDULE[2] = (int *) malloc( sizeof( int ) * 3 );
 	SCHEDULE[2][0] = 1;				//richiesta per task aperiodico
 	SCHEDULE[2][1] = 5;
 	SCHEDULE[2][2] = -1;
@@ -87,14 +87,14 @@ void task_init() {
 
 
 	/* frame 3 */
-	SCHEDULE[3] = (int *) malloc( sizeof( int ) * 3 );
+	SCHEDULE[3] = (int *) malloc( sizeof( int ) * 2 );
 	SCHEDULE[3][0] = 0;		
 	SCHEDULE[3][1] = -1;
 	
 	SLACK[3] = 3;
 	
 	/* frame 4 */
-	SCHEDULE[4] = (int *) malloc( sizeof( int ) * 3 );
+	SCHEDULE[4] = (int *) malloc( sizeof( int ) * 2 );
 	SCHEDULE[4][0] = 0;
 	SCHEDULE[4][1] = -1;
 	SLACK[4] = 3;
