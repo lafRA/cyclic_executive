@@ -59,35 +59,42 @@ void task_init() {
 	/* frame 0 */
 	SCHEDULE[0] = (int *) malloc( sizeof( int ) * 2 );
 	SCHEDULE[0][0] = 4;
-	SCHEDULE[0][1] = -1;
+	SCHEDULE[0][1] = 3;
+	SCHEDULE[0][2] = 0;
+	SCHEDULE[0][3] = -1;
 
 	SLACK[0] = 0;
 
 
 	/* frame 1 */
 	SCHEDULE[1] = (int *) malloc( sizeof( int ) * 3 );
-	SCHEDULE[1][0] = 2;
-	SCHEDULE[1][1] = 0;
-	SCHEDULE[1][2] = -1;
+	SCHEDULE[1][0] = 1;
+	SCHEDULE[1][1] = -1;
 
 	SLACK[1] = 0;
 
 
 	/* frame 2 */
 	SCHEDULE[2] = (int *) malloc( sizeof( int ) * 4 );
-	SCHEDULE[2][0] = 0;
+	SCHEDULE[2][0] = 2;
 	SCHEDULE[2][1] = 4;
-	SCHEDULE[2][2] = 1;
-	SCHEDULE[2][3] = -1;
+	SCHEDULE[2][2] = -1;
 
 	SLACK[2] = 0;
 
 
 	/* frame 3 */
 	SCHEDULE[3] = (int *) malloc( sizeof( int ) * 3 );
-	SCHEDULE[3][0] = 3;
-	SCHEDULE[3][1] = 1;
-	SCHEDULE[3][2] = -1;
+	SCHEDULE[3][0] = 1;
+	SCHEDULE[3][1] = -1;
+	
+	SLACK[3] = 0;
+	
+	/* frame 4 */
+	SCHEDULE[4] = (int *) malloc( sizeof( int ) * 3 );
+	SCHEDULE[4][0] = 0;
+	SCHEDULE[4][1] = -1;
+	SLACK[2] = 3;
 
 }
 
@@ -152,7 +159,7 @@ void task1_code() {
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task1 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
-	busy_wait(15, 20);
+	busy_wait(10, 15);
 	clock_gettime(CLOCK_REALTIME, &t);
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)
@@ -168,7 +175,7 @@ void task2_code() {
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task2 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
-	busy_wait(5, 10);
+	busy_wait(15, 20);
 // 	if(count == 1) {
 		ap_task_request();
 		fprintf(stderr, "\t\ttask2 requested aperiodic task\n", t.tv_sec, t.tv_nsec);
@@ -188,7 +195,7 @@ void task3_code() {
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task3 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
-	busy_wait(40, 40);
+	busy_wait(20, 25);
 	clock_gettime(CLOCK_REALTIME, &t);
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)
@@ -203,7 +210,7 @@ void task4_code() {
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task4 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
-	busy_wait(5, 10);
+	busy_wait(25, 30);
 	clock_gettime(CLOCK_REALTIME, &t);
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)
@@ -217,7 +224,7 @@ void task5_code() {
 	clock_gettime(CLOCK_REALTIME, &t);
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t);
-	busy_wait(50, 70);
+	busy_wait(30, 35);
 	clock_gettime(CLOCK_REALTIME, &t);
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)
