@@ -186,7 +186,7 @@ void task3_code() {
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
 	TIME_DIFF(zero_time, t)
 	fprintf(stderr, "----> task3 started @ (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6);
-	busy_wait(20, 40);
+	busy_wait(20, 39);
 	clock_gettime(CLOCK_REALTIME, &t);
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
 	TIME_DIFF(zero_time, t)
