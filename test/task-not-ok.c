@@ -7,10 +7,10 @@
 #include <unistd.h>
 
 /* Lunghezza dell'iperperiodo */
-#define H_PERIOD_ 20
+#define H_PERIOD_ 25
 
 /* Numero di frame */
-#define NUM_FRAMES_ 4
+#define NUM_FRAMES_ 5
 
 /* Numero di task */
 #define NUM_P_TASKS_ 6
@@ -69,6 +69,9 @@ void task_init() {
 
 
 	/* frame 1 */
+	
+	//ci aspettiamo una deadline miss del task5
+	
 	SCHEDULE[1] = (int *) malloc( sizeof( int ) * 3 );
 	SCHEDULE[1][0] = 4;
 	SCHEDULE[1][1] = 0;
