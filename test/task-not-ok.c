@@ -13,13 +13,14 @@
 #define NUM_FRAMES_ 4
 
 /* Numero di task */
-#define NUM_P_TASKS_ 5
+#define NUM_P_TASKS_ 6
 
 void task1_code();
 void task2_code();
 void task3_code();
 void task4_code();
 void task5_code();
+void task6_code();
 
 
 void ap_task_code();
@@ -47,6 +48,7 @@ void task_init() {
 	P_TASKS[2] = task3_code;
 	P_TASKS[3] = task4_code;
 	P_TASKS[4] = task5_code;
+	P_TASKS[5] = task6_code;
 	
 	/* ... */
 
@@ -58,9 +60,9 @@ void task_init() {
 
 	/* frame 0 */
 	SCHEDULE[0] = (int *) malloc( sizeof( int ) * 2 );
-	SCHEDULE[0][0] = 4;
-	SCHEDULE[0][1] = 3;
-	SCHEDULE[0][2] = 0;
+	SCHEDULE[0][0] = 0;
+	SCHEDULE[0][1] = 1;				//richiesta per task aperiodico
+ 	SCHEDULE[0][2] = 4;
 	SCHEDULE[0][3] = -1;
 
 	SLACK[0] = 0;
@@ -68,16 +70,17 @@ void task_init() {
 
 	/* frame 1 */
 	SCHEDULE[1] = (int *) malloc( sizeof( int ) * 3 );
-	SCHEDULE[1][0] = 1;
-	SCHEDULE[1][1] = -1;
+	SCHEDULE[1][0] = 4;
+	SCHEDULE[1][1] = 0;
+	SCHEDULE[1][2] = -1;
 
 	SLACK[1] = 0;
 
 
 	/* frame 2 */
 	SCHEDULE[2] = (int *) malloc( sizeof( int ) * 4 );
-	SCHEDULE[2][0] = 2;
-	SCHEDULE[2][1] = 4;
+	SCHEDULE[2][0] = 1;				//richiesta per task aperiodico
+	SCHEDULE[2][1] = 5;
 	SCHEDULE[2][2] = -1;
 
 	SLACK[2] = 0;
@@ -85,16 +88,16 @@ void task_init() {
 
 	/* frame 3 */
 	SCHEDULE[3] = (int *) malloc( sizeof( int ) * 3 );
-	SCHEDULE[3][0] = 1;
+	SCHEDULE[3][0] = 0;		
 	SCHEDULE[3][1] = -1;
 	
-	SLACK[3] = 0;
+	SLACK[3] = 3;
 	
 	/* frame 4 */
 	SCHEDULE[4] = (int *) malloc( sizeof( int ) * 3 );
 	SCHEDULE[4][0] = 0;
 	SCHEDULE[4][1] = -1;
-	SLACK[2] = 3;
+	SLACK[4] = 3;
 
 }
 
@@ -230,6 +233,20 @@ void task5_code() {
 	TIME_DIFF(zero_time, t)
 	TIME_DIFF(start, end)
 	fprintf(stderr, "\t\ttask5 ended @ (%ld)s (%.3f)ms\t||\t actual execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
+}
+
+void task6_code() {
+	/* Custom Code */
+	struct timespec t, start, end;		//da notare che t viene usato per indicare gli istati di partenza e fine ASSOLUTI, mentre start e end si riferiscono all'effettivo tempo di esecuzione del thread in questione
+	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
+	TIME_DIFF(zero_time, t);
+	busy_wait(40, 45);
+	clock_gettime(CLOCK_REALTIME, &t);
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
+	TIME_DIFF(zero_time, t)
+	TIME_DIFF(start, end)
+	fprintf(stderr, "\t\ttask6 ended @ (%ld)s (%.3f)ms\t||\t actual execution time: (%ld)s (%.3f)ms\n", t.tv_sec, t.tv_nsec/1e6, end.tv_sec, end.tv_nsec/1e6);
 }
 
 void ap_task_code() {
